@@ -124,10 +124,11 @@ export default function PublishScreen() {
   // Verificar si el formulario tiene todos los campos requeridos completos
   const isFormValid = React.useMemo(() => {
     const titleValid = formData.title.trim().length >= 3;
+    const priceValid = Number(formData.price) > 0;
     const pickupValid = isValidAddress(formData.pickup);
     const dropoffValid = isValidAddress(formData.dropoff);
-    return titleValid && pickupValid && dropoffValid;
-  }, [formData.title, formData.pickup, formData.dropoff]);
+    return titleValid && priceValid && pickupValid && dropoffValid;
+  }, [formData.title, formData.price, formData.pickup, formData.dropoff]);
 
   return (
     <ScrollView
@@ -186,29 +187,29 @@ export default function PublishScreen() {
         </TouchableOpacity>
       </View>
 
-      <FormField
-        label="Dirección de entrega"
-        required
-        placeholder="Calle, número, ciudad"
-        value={formData.dropoff}
-        onChangeText={(text) => updateField('dropoff', text)}
-        error={errors.dropoff}
-        editable={false}
-      />
-      <TouchableOpacity
-        style={[styles.mapButton, (loading || locationPicker.requesting) && styles.buttonDisabled]}
-        onPress={() => handleSelectAddress('dropoff')}
-        disabled={loading || locationPicker.requesting}
-      >
-        <Ionicons name="location-outline" size={18} color="#053959" />
-        <Text style={styles.mapButtonText}>
-          {locationPicker.requesting ? 'Obteniendo ubicación...' : 'Buscar en el mapa'}
-        </Text>
-      </TouchableOpacity>
-
+      <View style={styles.locationContainer}>
+        <FormField
+          label="Dirección de entrega"
+          required
+          placeholder="Calle, número, ciudad"
+          value={formData.dropoff}
+          onChangeText={(text) => updateField('dropoff', text)}
+          error={errors.dropoff}
+          editable={false}
+        />
+        <TouchableOpacity
+          style={[styles.mapButton, (loading || locationPicker.requesting) && styles.buttonDisabled]}
+          onPress={() => handleSelectAddress('dropoff')}
+          disabled={loading || locationPicker.requesting}
+        >
+          <Ionicons name="location-outline" size={18} color="#053959" />
+          <Text style={styles.mapButtonText}>
+            {locationPicker.requesting ? 'Obteniendo ubicación...' : 'Buscar en el mapa'}
+          </Text>
+        </TouchableOpacity>
+      </View>
       <PriceInput
-        label="Precio"
-        hint="Opcional - en pesos"
+        label="Precio (en pesos)"
         value={formData.price}
         onChangeText={(text) => updateField('price', text)}
         error={errors.price}
@@ -312,7 +313,7 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.6,
   },
-  locationContainer: {  
+  locationContainer: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     backgroundColor: '#FFFFFF',
@@ -347,6 +348,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 6,
     borderRadius: 10,
+    justifyContent: 'center',
   },
   mapButtonText: {
     color: '#053959',

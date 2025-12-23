@@ -10,7 +10,7 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <StatusBar style="auto" backgroundColor="#053959" /> 
+        <StatusBar style="auto" backgroundColor="#053959" translucent={true}/> 
         <View style={{ flex: 1, backgroundColor: 'white' }}>
           <Slot />
         </View>

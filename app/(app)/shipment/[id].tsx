@@ -1,9 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-import { listShipmentStatuses, updateShipmentStatus, type ShipmentStatusRow } from '../../../src/features/shipments/service';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { listShipmentStatuses, updateShipmentStatus, getShipmentById, type ShipmentStatusRow, type Shipment } from '../../../src/features/shipments/service';
+import { PaymentSection } from '../../../src/components/payments/PaymentSection';
+import { useAuthStore } from '../../../src/store/useAuthStore';
 import { colors, spacing, radii } from '../../../src/ui/theme';
 import { Ionicons } from '@expo/vector-icons';
+import type { PaymentStatus } from '../../../src/features/payments/service';
 
 const translateStatus = (status: string): string => {
   const statusMap: Record<string, string> = {
@@ -28,17 +31,24 @@ const NEXT_STATES: Record<string, string[]> = {
 
 export default function ShipmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { role } = useAuthStore();
   const [items, setItems] = useState<ShipmentStatusRow[]>([]);
+  const [shipment, setShipment] = useState<Shipment | null>(null);
   const [loading, setLoading] = useState(true);
   const [current, setCurrent] = useState<string>('created');
   const [saving, setSaving] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await listShipmentStatuses(id!);
-      setItems(data);
-      setCurrent(data[data.length - 1]?.status || 'created');
+      const [statuses, shipmentData] = await Promise.all([
+        listShipmentStatuses(id!),
+        getShipmentById(id!).catch(() => null), // Si falla, continuar sin el detalle
+      ]);
+      setItems(statuses);
+      setCurrent(statuses[statuses.length - 1]?.status || 'created');
+      setShipment(shipmentData);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'No se pudo cargar el detalle');
     } finally {
@@ -49,6 +59,13 @@ export default function ShipmentDetail() {
   useEffect(() => { 
     load(); 
   }, [load]);
+
+  // Recargar cuando la pantalla recibe foco (útil cuando se regresa del WebView de pago)
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const onChange = async (status: any) => {
     try {
@@ -118,6 +135,15 @@ export default function ShipmentDetail() {
           </Text>
         </View>
       </View>
+
+      {/* Payment Section - Solo para usuarios business y si el envío tiene precio */}
+      {role === 'business' && shipment && shipment.price && shipment.price > 0 && (
+        <PaymentSection
+          shipmentId={id!}
+          price={shipment.price}
+          onPaymentStatusChange={setPaymentStatus}
+        />
+      )}
 
       {/* Timeline Section */}
       <View style={styles.sectionContainer}>

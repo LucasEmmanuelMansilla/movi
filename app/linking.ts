@@ -22,6 +22,31 @@ export default {
           type: String,
         },
       },
+      // Pantallas de la app
+      '(app)': {
+        screens: {
+          // Rutas para callbacks de pagos
+          'payments/success': {
+            path: 'payments/success',
+            parse: {
+              shipment_id: String,
+            },
+          },
+          'payments/failure': {
+            path: 'payments/failure',
+            parse: {
+              shipment_id: String,
+            },
+          },
+          'payments/pending': {
+            path: 'payments/pending',
+            parse: {
+              shipment_id: String,
+            },
+          },
+          // Otras rutas de la app...
+        },
+      },
       // Otras rutas...
     },
   },

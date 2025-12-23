@@ -50,3 +50,13 @@ export type ShipmentStatusRow = {
 export async function listShipmentStatuses(id: string) {
   return api<ShipmentStatusRow[]>(`/shipments/${id}/statuses`);
 }
+
+export async function getShipmentById(id: string) {
+  // Obtener el envío desde la lista de "mine" para asegurar permisos
+  const shipments = await api<Shipment[]>(`/shipments?scope=mine`);
+  const shipment = shipments.find(s => s.id === id);
+  if (!shipment) {
+    throw new Error('Envío no encontrado');
+  }
+  return shipment;
+}

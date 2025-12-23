@@ -12,8 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.movi.app",
       "associatedDomains": [
-        "applinks:movi.com",
-        "applinks:https://unmendable-despina-articulately.ngrok-free.dev"
+        "applinks:movi.com"
       ],
       "infoPlist": {
         "CFBundleURLTypes": [
@@ -93,21 +92,6 @@
             "DEFAULT"
           ]
         },
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "https",
-              "host": "unmendable-despina-articulately.ngrok-free.dev",
-              "pathPrefix": "/payments"
-            }
-          ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
-        }
       ]
     },
     "web": {

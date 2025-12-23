@@ -97,9 +97,6 @@ export default function Login() {
     }
   }, [params?.email, email]);
 
-  useEffect(() => {
-    Alert.alert('flowType', flowType)
-  }, [flowType])
 
   return (
     <KeyboardAvoidingView

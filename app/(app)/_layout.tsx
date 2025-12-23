@@ -77,7 +77,34 @@ export default function AppLayout() {
           name="shipment/[id]"
           options={{
             href: null, // Esta ruta no se muestra en la barra de pestañas
-            title: 'Envío'
+            title: 'Envío',
+            tabBarIcon: () => null 
+          }}
+        />
+        
+        {/* Ocultar pantallas de pagos de la barra de pestañas */}
+        <Tabs.Screen
+          name="payments/success"
+          options={{
+            href: null,
+            title: 'Pago exitoso',
+            tabBarIcon: () => null
+          }}
+        />
+        <Tabs.Screen
+          name="payments/pending"
+          options={{
+            href: null,
+            title: 'Pago pendiente',
+            tabBarIcon: () => null
+          }}
+        />
+        <Tabs.Screen
+          name="payments/failure"
+          options={{
+            href: null,
+            title: 'Pago fallido',
+            tabBarIcon: () => null
           }}
         />
       </Tabs>

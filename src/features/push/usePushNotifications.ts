@@ -4,6 +4,7 @@ import { Platform, PermissionsAndroid, AppState } from 'react-native';
 import { api } from '../../lib/api';
 import * as Notifications from 'expo-notifications';
 import { pushNotificationEmitter } from './eventEmitter';
+import { useAuthStore } from '../../store/useAuthStore';
 
 // Eventos que se emiten cuando llegan notificaciones
 export const PUSH_EVENTS = {
@@ -19,6 +20,9 @@ export const PUSH_EVENTS = {
 export function usePushNotifications() {
   const registeredRef = useRef(false);
   const appState = useRef(AppState.currentState);
+  const { session } = useAuthStore();
+  const unsubscribeForegroundRef = useRef<(() => void) | null>(null);
+  const unsubscribeOpenedAppRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     // Listener para cambios de estado de la app
@@ -45,7 +49,7 @@ export function usePushNotifications() {
   }, []);
 
   const handleNotification = useCallback((remoteMessage: any) => {
-    console.log('Notificación recibida:', remoteMessage);
+    console.log('📬 Notificación recibida:', remoteMessage);
     
     // Emitir evento para que las pantallas se actualicen
     const data = remoteMessage.data || {};
@@ -77,11 +81,24 @@ export function usePushNotifications() {
   }, []);
 
   useEffect(() => {
-    (async () => {
+    // Solo registrar si hay una sesión activa
+    if (!session) {
+      console.log('⏸️ Push notifications: No hay sesión activa, esperando autenticación...');
+      return;
+    }
+
+    // Evitar múltiples registros
+    if (registeredRef.current) {
+      console.log('⏭️ Push notifications: Ya registrado, omitiendo...');
+      return;
+    }
+
+    let isMounted = true;
+    registeredRef.current = true;
+
+    const initializePushNotifications = async () => {
       try {
-        // Evitar múltiples registros
-        if (registeredRef.current) return;
-        registeredRef.current = true;
+        console.log('🔔 Inicializando push notifications...');
 
         // Solicitar permisos en Android
         if (Platform.OS === 'android') {
@@ -90,9 +107,11 @@ export function usePushNotifications() {
           );
           
           if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-            console.log('Permisos de notificación denegados');
+            console.warn('⚠️ Permisos de notificación denegados');
+            registeredRef.current = false;
             return;
           }
+          console.log('✅ Permisos de notificación concedidos');
         }
 
         // Configurar expo-notifications para mostrar notificaciones locales en primer plano
@@ -101,16 +120,26 @@ export function usePushNotifications() {
             shouldShowAlert: true,
             shouldPlaySound: true,
             shouldSetBadge: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
           }),
         });
 
         // Obtener el token FCM
         const token = await messaging().getToken();
         
-        if (token) {
-          console.log('Token FCM obtenido:', token.substring(0, 20) + '...');
-          
-          // Registrar el token en el backend
+        if (!token) {
+          console.warn('⚠️ No se pudo obtener el token FCM');
+          registeredRef.current = false;
+          return;
+        }
+
+        if (!isMounted) return;
+
+        console.log('🔑 Token FCM obtenido:', token.substring(0, 20) + '...');
+        
+        // Registrar el token en el backend
+        try {
           await api('/push/register', {
             method: 'POST',
             body: JSON.stringify({ 
@@ -119,12 +148,21 @@ export function usePushNotifications() {
             })
           });
           
-          console.log('Token registrado exitosamente en el backend');
+          console.log('✅ Token registrado exitosamente en el backend');
+        } catch (error: any) {
+          console.error('❌ Error al registrar token en el backend:', error);
+          // Si falla por falta de autenticación, permitir reintento
+          if (error.statusCode === 401) {
+            registeredRef.current = false;
+          }
+          return;
         }
+
+        if (!isMounted) return;
 
         // Configurar el manejador de notificaciones en primer plano
         const unsubscribeForeground = messaging().onMessage(async remoteMessage => {
-          console.log('Notificación recibida en primer plano:', remoteMessage);
+          console.log('📨 Notificación recibida en primer plano:', remoteMessage);
           
           const notification = remoteMessage.notification;
           if (notification) {
@@ -145,35 +183,49 @@ export function usePushNotifications() {
             handleNotification(remoteMessage);
           }
         });
+        unsubscribeForegroundRef.current = unsubscribeForeground;
 
         // Configurar el manejador cuando la app se abre desde una notificación
         const unsubscribeOpenedApp = messaging().onNotificationOpenedApp(remoteMessage => {
-          console.log('App abierta desde notificación:', remoteMessage);
+          console.log('📱 App abierta desde notificación:', remoteMessage);
           handleNotification(remoteMessage);
         });
+        unsubscribeOpenedAppRef.current = unsubscribeOpenedApp;
 
         // Verificar si la app se abrió desde una notificación (cuando estaba cerrada)
         messaging()
           .getInitialNotification()
           .then(remoteMessage => {
             if (remoteMessage) {
-              console.log('App abierta desde notificación (estado cerrado):', remoteMessage);
+              console.log('🔓 App abierta desde notificación (estado cerrado):', remoteMessage);
               handleNotification(remoteMessage);
             }
           });
 
-        // Limpiar suscripciones al desmontar
-        return () => {
-          unsubscribeForeground();
-          unsubscribeOpenedApp();
-        };
       } catch (e) {
-        // Silenciar errores de push para no bloquear el uso
-        console.log('Error al registrar push notifications:', e);
+        console.error('❌ Error al inicializar push notifications:', e);
         registeredRef.current = false; // Permitir reintento en caso de error
       }
-    })();
-  }, [handleNotification]);
+    };
+
+    initializePushNotifications();
+
+    // Limpiar suscripciones al desmontar o cuando cambie la sesión
+    return () => {
+      isMounted = false;
+      console.log('🧹 Limpiando listeners de push notifications...');
+      if (unsubscribeForegroundRef.current) {
+        unsubscribeForegroundRef.current();
+        unsubscribeForegroundRef.current = null;
+      }
+      if (unsubscribeOpenedAppRef.current) {
+        unsubscribeOpenedAppRef.current();
+        unsubscribeOpenedAppRef.current = null;
+      }
+      // Permitir reintento cuando se desmonte o cambie la sesión
+      registeredRef.current = false;
+    };
+  }, [session, handleNotification]);
 }
 
 /**

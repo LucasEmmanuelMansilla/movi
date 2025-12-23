@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import MapView, { Marker, Region, MapPressEvent } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,19 +14,42 @@ type Props = {
 const DEFAULT_DELTA = { latitudeDelta: 0.02, longitudeDelta: 0.02 };
 
 export function MapPickerModal({ visible, initialCoords, onConfirm, onClose, title }: Props) {
+  const mapRef = useRef<MapView>(null);
   const [region, setRegion] = useState<Region>({
     ...initialCoords,
     ...DEFAULT_DELTA,
   });
   const [marker, setMarker] = useState<{ latitude: number; longitude: number } | null>(initialCoords);
   const [loading, setLoading] = useState(false);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const prevCoordsRef = useRef(initialCoords);
 
+  // Cuando se abre el modal, resetear región y marcador
   useEffect(() => {
     if (visible) {
-      setRegion({ ...initialCoords, ...DEFAULT_DELTA });
+      const newRegion = { ...initialCoords, ...DEFAULT_DELTA };
+      setRegion(newRegion);
       setMarker(initialCoords);
+      setIsMapReady(false);
+      prevCoordsRef.current = initialCoords;
     }
-  }, [visible, initialCoords]);
+  }, [visible]);
+
+  // Cuando cambian las coordenadas iniciales y el mapa está listo, animar a la nueva ubicación
+  useEffect(() => {
+    if (visible && isMapReady && mapRef.current) {
+      const coordsChanged = 
+        prevCoordsRef.current.latitude !== initialCoords.latitude ||
+        prevCoordsRef.current.longitude !== initialCoords.longitude;
+      
+      if (coordsChanged) {
+        const newRegion = { ...initialCoords, ...DEFAULT_DELTA };
+        mapRef.current.animateToRegion(newRegion, 1000);
+        setMarker(initialCoords);
+        prevCoordsRef.current = initialCoords;
+      }
+    }
+  }, [visible, initialCoords, isMapReady]);
 
   const handlePress = (event: MapPressEvent) => {
     setMarker(event.nativeEvent.coordinate);
@@ -54,9 +77,11 @@ export function MapPickerModal({ visible, initialCoords, onConfirm, onClose, tit
           </View>
 
           <MapView
+            ref={mapRef}
             style={styles.map}
             region={region}
             onRegionChangeComplete={setRegion}
+            onMapReady={() => setIsMapReady(true)}
             onPress={handlePress}
           >
             {marker && (

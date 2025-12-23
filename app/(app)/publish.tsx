@@ -86,14 +86,22 @@ export default function PublishScreen() {
 
   const handleSelectAddress = async (type: 'pickup' | 'dropoff') => {
     setMapTarget(type);
-    const result = await locationPicker.pickFromCurrentPosition();
-    if (result?.location?.coords) {
-      setMapInitialCoords({
-        latitude: result.location.coords.latitude,
-        longitude: result.location.coords.longitude,
-      });
-    }
+    // Abrir el mapa inmediatamente sin esperar la ubicación
     setMapVisible(true);
+    
+    // Intentar obtener la ubicación actual en segundo plano para centrar el mapa
+    // Si no se puede obtener, el mapa usará las coordenadas por defecto
+    locationPicker.pickFromCurrentPosition().then((result) => {
+      if (result?.location?.coords) {
+        setMapInitialCoords({
+          latitude: result.location.coords.latitude,
+          longitude: result.location.coords.longitude,
+        });
+      }
+    }).catch(() => {
+      // Si falla, simplemente usar las coordenadas por defecto
+      // El mapa ya está abierto, no hay problema
+    });
   };
 
   const handleSubmit = async () => {

@@ -10,6 +10,7 @@ import type { PaymentStatus } from '../../../src/features/payments/service';
 
 const translateStatus = (status: string): string => {
   const statusMap: Record<string, string> = {
+    draft: 'Borrador (Requiere pago)',
     created: 'Creado',
     assigned: 'Asignado',
     picked_up: 'Recogido',

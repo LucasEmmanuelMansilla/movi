@@ -10,15 +10,18 @@ export interface ShipmentFormData {
   description: string;
   pickup: string;
   dropoff: string;
+  weight: string; // Peso en kg
   price: string;
   images: string[];
   location?: LocationPayload;
+  dropoffLocation?: LocationPayload; // Coordenadas de entrega
 }
 
 export interface FormErrors {
   title?: string;
   pickup?: string;
   dropoff?: string;
+  weight?: string;
   price?: string;
 }
 
@@ -27,9 +30,11 @@ const initialFormData: ShipmentFormData = {
   description: '',
   pickup: '',
   dropoff: '',
+  weight: '',
   price: '',
   images: [],
   location: undefined,
+  dropoffLocation: undefined,
 };
 
 export function useShipmentForm() {
@@ -64,6 +69,10 @@ export function useShipmentForm() {
       newErrors.dropoff = 'La dirección de entrega debe tener al menos 10 caracteres';
     }
 
+    if (!formData.weight.trim() || Number(formData.weight) <= 0) {
+      newErrors.weight = 'El peso debe ser mayor a 0 kg';
+    }
+
     if (formData.price && !isValidPrice(formData.price)) {
       newErrors.price = 'El precio debe ser un número válido';
     }
@@ -95,9 +104,10 @@ export function useShipmentForm() {
         description: formData.description.trim() ? sanitizeString(formData.description) : undefined,
         pickup_address: sanitizeString(formData.pickup),
         dropoff_address: sanitizeString(formData.dropoff),
-        price: formData.price ? Number(formData.price) : undefined,
+        weight: Number(formData.weight),
         images: imageData,
         location: formData.location,
+        dropoffLocation: formData.dropoffLocation,
       });
       
       // Resetear formulario

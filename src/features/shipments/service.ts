@@ -8,7 +8,8 @@ export type Shipment = {
   pickup_address: string;
   dropoff_address: string;
   price: number | null;
-  current_status: 'created' | 'assigned' | 'picked_up' | 'in_transit' | 'delivered' | 'cancelled';
+  weight?: number | null;
+  current_status: 'draft' | 'created' | 'assigned' | 'picked_up' | 'in_transit' | 'delivered' | 'cancelled';
   created_at: string;
   created_by: string;
 };
@@ -18,9 +19,10 @@ export async function createShipment(payload: {
   description?: string;
   pickup_address: string;
   dropoff_address: string;
-  price?: number;
+  weight: number; // Peso en kg
   images?: string[]; // Array de imágenes en base64
   location?: LocationPayload;
+  dropoffLocation?: LocationPayload; // Coordenadas de entrega
 }) {
   return api<Shipment>('/shipments', { method: 'POST', body: JSON.stringify(payload) });
 }

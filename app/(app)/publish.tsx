@@ -13,8 +13,10 @@ import { useLocationPicker } from '../../src/hooks/useLocationPicker';
 import { isValidAddress } from '../../src/utils/validation';
 import CustomAlert from '../../src/components/ui/CustomAlert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 
 export default function PublishScreen() {
+  const router = useRouter();
   const alertRef = useRef<any>(null);
   const imagePicker = useImagePicker();
   const locationPicker = useLocationPicker();
@@ -118,9 +120,9 @@ export default function PublishScreen() {
         } catch (error) {
           console.warn('Error guardando envío pendiente:', error);
         }
-      }
-      if (result.title && result.message) {
-        showAlert(result.title, result.message);
+        
+        // Redirigir a la pantalla de detalle del envío para pagar
+        router.push(`/(app)/shipment/${result.shipment.id}`);
       }
     } else {
       if (result.title && result.message) {
@@ -129,14 +131,75 @@ export default function PublishScreen() {
     }
   };
 
+  // Calcular precio automáticamente cuando cambian las direcciones o el peso
+  React.useEffect(() => {
+    const calculatePrice = async () => {
+      if (!formData.pickup || !formData.dropoff || !formData.weight || !pickupCoords) {
+        return;
+      }
+
+      try {
+        // Obtener coordenadas de entrega
+        const [dropoffGeocode] = await Location.geocodeAsync(formData.dropoff);
+        if (!dropoffGeocode) return;
+
+        const dropoffCoords = {
+          latitude: dropoffGeocode.latitude,
+          longitude: dropoffGeocode.longitude,
+        };
+
+        // Calcular distancia
+        const distance = haversine(
+          pickupCoords.latitude,
+          pickupCoords.longitude,
+          dropoffCoords.latitude,
+          dropoffCoords.longitude
+        );
+
+        // Guardar coordenadas de entrega
+        setFormData(prev => ({
+          ...prev,
+          dropoffLocation: {
+            coords: {
+              accuracy: 0,
+              altitude: 0,
+              altitudeAccuracy: 0,
+              heading: 0,
+              latitude: dropoffCoords.latitude,
+              longitude: dropoffCoords.longitude,
+              speed: 0,
+            },
+            mocked: false,
+            timestamp: Date.now(),
+          },
+        }));
+
+        // Calcular precio: base por km + factor por peso
+        // Fórmula: (distancia_km * precio_por_km) + (peso_kg * factor_peso)
+        const PRICE_PER_KM = 500; // $500 por kilómetro
+        const PRICE_PER_KG = 200; // $200 por kilogramo
+        const BASE_PRICE = 1000; // Precio base
+
+        const calculatedPrice = BASE_PRICE + (distance * PRICE_PER_KM) + (Number(formData.weight) * PRICE_PER_KG);
+        
+        updateField('price', Math.round(calculatedPrice).toString());
+      } catch (error) {
+        console.warn('Error calculando precio:', error);
+      }
+    };
+
+    calculatePrice();
+  }, [formData.pickup, formData.dropoff, formData.weight, pickupCoords]);
+
   // Verificar si el formulario tiene todos los campos requeridos completos
   const isFormValid = React.useMemo(() => {
     const titleValid = formData.title.trim().length >= 3;
+    const weightValid = Number(formData.weight) > 0;
     const priceValid = Number(formData.price) > 0;
     const pickupValid = isValidAddress(formData.pickup);
     const dropoffValid = isValidAddress(formData.dropoff);
-    return titleValid && priceValid && pickupValid && dropoffValid;
-  }, [formData.title, formData.price, formData.pickup, formData.dropoff]);
+    return titleValid && weightValid && priceValid && pickupValid && dropoffValid;
+  }, [formData.title, formData.weight, formData.price, formData.pickup, formData.dropoff]);
 
   return (
     <ScrollView
@@ -216,13 +279,27 @@ export default function PublishScreen() {
           </Text>
         </TouchableOpacity>
       </View>
-      <PriceInput
-        label="Precio (en pesos)"
-        value={formData.price}
-        onChangeText={(text) => updateField('price', text)}
-        error={errors.price}
+
+      <FormField
+        label="Peso (en kg)"
+        required
+        placeholder="Ej: 5.5"
+        value={formData.weight}
+        onChangeText={(text) => updateField('weight', text.replace(/[^0-9.]/g, ''))}
+        error={errors.weight}
+        keyboardType="decimal-pad"
         editable={!loading}
       />
+
+      <View style={styles.priceDisplayContainer}>
+        <Text style={styles.priceLabel}>Precio calculado</Text>
+        <Text style={styles.priceValue}>
+          {formData.price ? `$${Number(formData.price).toLocaleString('es-AR')}` : 'Calculando...'}
+        </Text>
+        <Text style={styles.priceHint}>
+          Basado en distancia y peso del envío
+        </Text>
+      </View>
 
 
       {locationPicker.error && (
@@ -287,6 +364,23 @@ export default function PublishScreen() {
               updateField('pickup', formatted);
             } else {
               updateField('dropoff', formatted);
+              // Guardar coordenadas de entrega
+              setFormData(prev => ({
+                ...prev,
+                dropoffLocation: {
+                  coords: {
+                    accuracy: 0,
+                    altitude: 0,
+                    altitudeAccuracy: 0,
+                    heading: 0,
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                    speed: 0,
+                  },
+                  mocked: false,
+                  timestamp: Date.now(),
+                },
+              }));
             }
 
             setMapVisible(false);
@@ -395,5 +489,30 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 6,
     color: '#b91c1c',
+  },
+  priceDisplayContainer: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#E5F6EE',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#09c577',
+  },
+  priceLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#053959',
+    marginBottom: 4,
+  },
+  priceValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#09c577',
+    marginBottom: 4,
+  },
+  priceHint: {
+    fontSize: 12,
+    color: '#6B7280',
   },
 });

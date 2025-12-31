@@ -1,10 +1,9 @@
 import React, { useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { FormField } from '../../src/components/shipments/FormField';
 import { ImagePickerSection } from '../../src/components/shipments/ImagePickerSection';
-import { PriceInput } from '../../src/components/shipments/PriceInput';
 import { ShipmentFormHeader } from '../../src/components/shipments/ShipmentFormHeader';
 import { MapPickerModal } from '../../src/components/shipments/MapPickerModal';
 import { useImagePicker } from '../../src/hooks/useImagePicker';
@@ -13,13 +12,18 @@ import { useLocationPicker } from '../../src/hooks/useLocationPicker';
 import { isValidAddress } from '../../src/utils/validation';
 import CustomAlert from '../../src/components/ui/CustomAlert';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useRouter } from 'expo-router';
+import { createPayment } from '../../src/features/payments/service';
+import { useAuthStore } from '../../src/store/useAuthStore';
+import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
+import { getErrorMessage } from '../../src/utils/errorHandler';
+import { colors } from '../../src/ui/theme';
 
 export default function PublishScreen() {
-  const router = useRouter();
   const alertRef = useRef<any>(null);
   const imagePicker = useImagePicker();
   const locationPicker = useLocationPicker();
+  const { user } = useAuthStore();
+  const [processingPayment, setProcessingPayment] = useState(false);
   type GeoPoint = { latitude: number; longitude: number };
   const [mapVisible, setMapVisible] = useState(false);
   const [mapTarget, setMapTarget] = useState<'pickup' | 'dropoff'>('pickup');
@@ -92,18 +96,27 @@ export default function PublishScreen() {
     setMapVisible(true);
     
     // Intentar obtener la ubicación actual en segundo plano para centrar el mapa
-    // Si no se puede obtener, el mapa usará las coordenadas por defecto
-    locationPicker.pickFromCurrentPosition().then((result) => {
-      if (result?.location?.coords) {
-        setMapInitialCoords({
-          latitude: result.location.coords.latitude,
-          longitude: result.location.coords.longitude,
-        });
+    // NO usar pickFromCurrentPosition porque pone requesting=true y deshabilita botones
+    // En su lugar, obtener la ubicación directamente sin afectar el estado del hook
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === Location.PermissionStatus.GRANTED) {
+          const current = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          if (current?.coords) {
+            setMapInitialCoords({
+              latitude: current.coords.latitude,
+              longitude: current.coords.longitude,
+            });
+          }
+        }
+      } catch {
+        // Si falla, simplemente usar las coordenadas por defecto
+        // El mapa ya está abierto, no hay problema
       }
-    }).catch(() => {
-      // Si falla, simplemente usar las coordenadas por defecto
-      // El mapa ya está abierto, no hay problema
-    });
+    })();
   };
 
   const handleSubmit = async () => {
@@ -121,8 +134,46 @@ export default function PublishScreen() {
           console.warn('Error guardando envío pendiente:', error);
         }
         
-        // Redirigir a la pantalla de detalle del envío para pagar
-        router.push(`/(app)/shipment/${result.shipment.id}`);
+        // Crear pago automáticamente y abrir checkout de Mercado Pago
+        if (!user?.email) {
+          Alert.alert('Error', 'No se encontró tu correo electrónico. Por favor inicia sesión nuevamente.');
+          return;
+        }
+
+        try {
+          setProcessingPayment(true);
+          
+          const paymentResponse = await createPayment({
+            shipmentId: result.shipment.id,
+            payerEmail: user.email,
+            payerName: user.fullName || undefined,
+          });
+
+          // Abrir directamente el checkout de Mercado Pago
+          const checkoutUrl = paymentResponse.checkoutUrl || paymentResponse.sandboxInitPoint || paymentResponse.initPoint;
+          
+          if (!checkoutUrl) {
+            throw new Error('No se recibió URL de checkout');
+          }
+
+          // Abrir en un WebView dentro de la app
+          // El usuario será redirigido automáticamente cuando complete o cancele el pago
+          // Los deep links manejarán la navegación de regreso
+          await openBrowserAsync(checkoutUrl, {
+            presentationStyle: WebBrowserPresentationStyle.FULL_SCREEN,
+            enableBarCollapsing: false,
+            controlsColor: colors.accent,
+          });
+          
+          // Si el usuario cierra el browser sin completar el pago, 
+          // puede navegar manualmente al detalle del envío desde "Mis envíos"
+          // Si completa el pago, los deep links lo redirigirán automáticamente
+        } catch (error: any) {
+          const errorMessage = getErrorMessage(error);
+          Alert.alert('Error al crear el pago', errorMessage);
+        } finally {
+          setProcessingPayment(false);
+        }
       }
     } else {
       if (result.title && result.message) {
@@ -131,23 +182,58 @@ export default function PublishScreen() {
     }
   };
 
+  // Estado para controlar el cálculo de precio
+  const [calculatingPrice, setCalculatingPrice] = useState(false);
+  const calculationTimeoutRef = React.useRef<number | null>(null);
+
   // Calcular precio automáticamente cuando cambian las direcciones o el peso
   React.useEffect(() => {
+    // Limpiar timeout anterior si existe
+    if (calculationTimeoutRef.current) {
+      clearTimeout(calculationTimeoutRef.current);
+    }
+
     const calculatePrice = async () => {
+      // Validar que tenemos todos los datos necesarios
       if (!formData.pickup || !formData.dropoff || !formData.weight || !pickupCoords) {
         return;
       }
 
-      try {
-        // Obtener coordenadas de entrega
-        const [dropoffGeocode] = await Location.geocodeAsync(formData.dropoff);
-        if (!dropoffGeocode) return;
+      // Si ya tenemos las coordenadas de dropoff del mapa, usarlas directamente
+      let dropoffCoords: { latitude: number; longitude: number } | null = null;
 
-        const dropoffCoords = {
-          latitude: dropoffGeocode.latitude,
-          longitude: dropoffGeocode.longitude,
+      if (formData.dropoffLocation?.coords) {
+        // Ya tenemos coordenadas del mapa, usarlas directamente
+        dropoffCoords = {
+          latitude: formData.dropoffLocation.coords.latitude,
+          longitude: formData.dropoffLocation.coords.longitude,
         };
+      } else {
+        // Solo geocodificar si no tenemos coordenadas del mapa
+        try {
+          setCalculatingPrice(true);
+          const [dropoffGeocode] = await Location.geocodeAsync(formData.dropoff);
+          if (!dropoffGeocode) {
+            setCalculatingPrice(false);
+            return;
+          }
+          dropoffCoords = {
+            latitude: dropoffGeocode.latitude,
+            longitude: dropoffGeocode.longitude,
+          };
+        } catch (error) {
+          console.warn('Error geocodificando dirección de entrega:', error);
+          setCalculatingPrice(false);
+          return;
+        }
+      }
 
+      if (!dropoffCoords) {
+        setCalculatingPrice(false);
+        return;
+      }
+
+      try {
         // Calcular distancia
         const distance = haversine(
           pickupCoords.latitude,
@@ -155,24 +241,6 @@ export default function PublishScreen() {
           dropoffCoords.latitude,
           dropoffCoords.longitude
         );
-
-        // Guardar coordenadas de entrega
-        setFormData(prev => ({
-          ...prev,
-          dropoffLocation: {
-            coords: {
-              accuracy: 0,
-              altitude: 0,
-              altitudeAccuracy: 0,
-              heading: 0,
-              latitude: dropoffCoords.latitude,
-              longitude: dropoffCoords.longitude,
-              speed: 0,
-            },
-            mocked: false,
-            timestamp: Date.now(),
-          },
-        }));
 
         // Calcular precio: base por km + factor por peso
         // Fórmula: (distancia_km * precio_por_km) + (peso_kg * factor_peso)
@@ -185,11 +253,23 @@ export default function PublishScreen() {
         updateField('price', Math.round(calculatedPrice).toString());
       } catch (error) {
         console.warn('Error calculando precio:', error);
+      } finally {
+        setCalculatingPrice(false);
       }
     };
 
-    calculatePrice();
-  }, [formData.pickup, formData.dropoff, formData.weight, pickupCoords]);
+    // Debounce: esperar 500ms antes de calcular para evitar cálculos múltiples
+    calculationTimeoutRef.current = setTimeout(() => {
+      calculatePrice();
+    }, 500);
+
+    // Cleanup
+    return () => {
+      if (calculationTimeoutRef.current) {
+        clearTimeout(calculationTimeoutRef.current);
+      }
+    };
+  }, [formData.pickup, formData.dropoff, formData.weight, formData.dropoffLocation, pickupCoords]);
 
   // Verificar si el formulario tiene todos los campos requeridos completos
   const isFormValid = React.useMemo(() => {
@@ -247,13 +327,13 @@ export default function PublishScreen() {
           editable={false}
         />
         <TouchableOpacity
-          style={[styles.mapButton, (loading || locationPicker.requesting) && styles.buttonDisabled]}
+          style={[styles.mapButton, loading && styles.buttonDisabled]}
           onPress={() => handleSelectAddress('pickup')}
-          disabled={loading || locationPicker.requesting}
+          disabled={loading}
         >
           <Ionicons name="location-outline" size={18} color="#053959" />
           <Text style={styles.mapButtonText}>
-            {locationPicker.requesting ? 'Obteniendo ubicación...' : 'Buscar en el mapa'}
+            Buscar en el mapa
           </Text>
         </TouchableOpacity>
       </View>
@@ -269,13 +349,13 @@ export default function PublishScreen() {
           editable={false}
         />
         <TouchableOpacity
-          style={[styles.mapButton, (loading || locationPicker.requesting) && styles.buttonDisabled]}
+          style={[styles.mapButton, loading && styles.buttonDisabled]}
           onPress={() => handleSelectAddress('dropoff')}
-          disabled={loading || locationPicker.requesting}
+          disabled={loading}
         >
           <Ionicons name="location-outline" size={18} color="#053959" />
           <Text style={styles.mapButtonText}>
-            {locationPicker.requesting ? 'Obteniendo ubicación...' : 'Buscar en el mapa'}
+            Buscar en el mapa
           </Text>
         </TouchableOpacity>
       </View>
@@ -294,7 +374,7 @@ export default function PublishScreen() {
       <View style={styles.priceDisplayContainer}>
         <Text style={styles.priceLabel}>Precio calculado</Text>
         <Text style={styles.priceValue}>
-          {formData.price ? `$${Number(formData.price).toLocaleString('es-AR')}` : 'Calculando...'}
+          {calculatingPrice ? 'Calculando...' : formData.price ? `$${Number(formData.price).toLocaleString('es-AR')}` : '-'}
         </Text>
         <Text style={styles.priceHint}>
           Basado en distancia y peso del envío
@@ -307,12 +387,12 @@ export default function PublishScreen() {
       )}
 
       <TouchableOpacity
-        style={[styles.button, (loading || !isFormValid) && styles.buttonDisabled]}
+        style={[styles.button, (loading || processingPayment || !isFormValid) && styles.buttonDisabled]}
         onPress={handleSubmit}
-        disabled={loading || !isFormValid}
+        disabled={loading || processingPayment || !isFormValid}
       >
         <Text style={styles.buttonText}>
-          {loading ? 'Publicando...' : 'Publicar envío'}
+          {loading ? 'Publicando...' : processingPayment ? 'Preparando pago...' : 'Publicar envío'}
         </Text>
       </TouchableOpacity>
 
@@ -338,54 +418,87 @@ export default function PublishScreen() {
             }
           }
 
-          // Geocodificar para obtener una dirección legible
-          try {
-            const [geocode] = await Location.reverseGeocodeAsync(coords);
-            const formatted = formatAddress(geocode) || 'Ubicación seleccionada';
+          // Cerrar el mapa inmediatamente para mejorar la experiencia
+          setMapVisible(false);
 
-            if (mapTarget === 'pickup') {
-              setPickupCoords(coords);
-              setFormData(prev => ({
-                ...prev,
-                location: {
-                  coords: {
-                    accuracy: 0,
-                    altitude: 0,
-                    altitudeAccuracy: 0,
-                    heading: 0,
-                    latitude: coords.latitude,
-                    longitude: coords.longitude,
-                    speed: 0,
-                  },
-                  mocked: false,
-                  timestamp: Date.now(),
+          // Actualizar coordenadas primero (esto es instantáneo)
+          if (mapTarget === 'pickup') {
+            setPickupCoords(coords);
+            setFormData(prev => ({
+              ...prev,
+              location: {
+                coords: {
+                  accuracy: 0,
+                  altitude: 0,
+                  altitudeAccuracy: 0,
+                  heading: 0,
+                  latitude: coords.latitude,
+                  longitude: coords.longitude,
+                  speed: 0,
                 },
-              }));
-              updateField('pickup', formatted);
-            } else {
-              updateField('dropoff', formatted);
-              // Guardar coordenadas de entrega
-              setFormData(prev => ({
-                ...prev,
-                dropoffLocation: {
-                  coords: {
-                    accuracy: 0,
-                    altitude: 0,
-                    altitudeAccuracy: 0,
-                    heading: 0,
-                    latitude: coords.latitude,
-                    longitude: coords.longitude,
-                    speed: 0,
-                  },
-                  mocked: false,
-                  timestamp: Date.now(),
+                mocked: false,
+                timestamp: Date.now(),
+              },
+            }));
+            // Mostrar coordenadas temporalmente mientras se geocodifica
+            updateField('pickup', `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`);
+            
+            // Geocodificar en segundo plano (no bloquea la UI)
+            Location.reverseGeocodeAsync(coords).then(([geocode]) => {
+              if (geocode) {
+                const formatted = formatAddress(geocode) || 'Ubicación seleccionada';
+                updateField('pickup', formatted);
+              }
+            }).catch(() => {
+              // Si falla la geocodificación, mantener las coordenadas
+              console.warn('Error geocodificando dirección de retiro');
+            });
+          } else {
+            // Guardar coordenadas de entrega inmediatamente
+            setFormData(prev => ({
+              ...prev,
+              dropoffLocation: {
+                coords: {
+                  accuracy: 0,
+                  altitude: 0,
+                  altitudeAccuracy: 0,
+                  heading: 0,
+                  latitude: coords.latitude,
+                  longitude: coords.longitude,
+                  speed: 0,
                 },
-              }));
+                mocked: false,
+                timestamp: Date.now(),
+              },
+            }));
+            // Mostrar coordenadas temporalmente mientras se geocodifica
+            updateField('dropoff', `${coords.latitude.toFixed(6)}, ${coords.longitude.toFixed(6)}`);
+            
+            // Calcular precio inmediatamente con las coordenadas del mapa (sin esperar geocodificación)
+            if (pickupCoords && formData.weight) {
+              const distance = haversine(
+                pickupCoords.latitude,
+                pickupCoords.longitude,
+                coords.latitude,
+                coords.longitude
+              );
+              const PRICE_PER_KM = 500;
+              const PRICE_PER_KG = 200;
+              const BASE_PRICE = 1000;
+              const calculatedPrice = BASE_PRICE + (distance * PRICE_PER_KM) + (Number(formData.weight) * PRICE_PER_KG);
+              updateField('price', Math.round(calculatedPrice).toString());
             }
-
-            setMapVisible(false);
-          } catch {
-            showAlert('Error', 'No se pudo obtener la dirección del punto seleccionado.');
+            
+            // Geocodificar en segundo plano (no bloquea la UI)
+            Location.reverseGeocodeAsync(coords).then(([geocode]) => {
+              if (geocode) {
+                const formatted = formatAddress(geocode) || 'Ubicación seleccionada';
+                updateField('dropoff', formatted);
+              }
+            }).catch(() => {
+              // Si falla la geocodificación, mantener las coordenadas
+              console.warn('Error geocodificando dirección de entrega');
+            });
           }
         }}
       />

@@ -8,7 +8,7 @@ export type Shipment = {
   pickup_address: string;
   dropoff_address: string;
   price: number | null;
-  weight?: number | null;
+  weight: number;
   current_status: 'draft' | 'created' | 'assigned' | 'picked_up' | 'in_transit' | 'delivered' | 'cancelled';
   created_at: string;
   created_by: string;
@@ -36,8 +36,16 @@ export async function acceptShipment(id: string) {
   return api(`/shipments/${id}/accept`, { method: 'POST' });
 }
 
-export async function updateShipmentStatus(id: string, status: 'picked_up' | 'in_transit' | 'delivered' | 'cancelled', note?: string) {
-  return api(`/shipments/${id}/status`, { method: 'POST', body: JSON.stringify({ status, note }) });
+export async function updateShipmentStatus(
+  id: string, 
+  status: 'picked_up' | 'in_transit' | 'delivered' | 'cancelled', 
+  note?: string,
+  location?: import('../../hooks/useLocationPicker').LocationPayload
+) {
+  return api(`/shipments/${id}/status`, { 
+    method: 'POST', 
+    body: JSON.stringify({ status, note, location }) 
+  });
 }
 
 export type ShipmentStatusRow = {

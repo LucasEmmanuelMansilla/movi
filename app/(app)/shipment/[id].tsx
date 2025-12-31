@@ -1,12 +1,15 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { listShipmentStatuses, updateShipmentStatus, getShipmentById, type ShipmentStatusRow, type Shipment } from '../../../src/features/shipments/service';
 import { PaymentSection } from '../../../src/components/payments/PaymentSection';
+import { ShipmentTrackingMap } from '../../../src/components/shipments/ShipmentTrackingMap';
 import { useAuthStore } from '../../../src/store/useAuthStore';
 import { colors, spacing, radii } from '../../../src/ui/theme';
 import { Ionicons } from '@expo/vector-icons';
 import type { PaymentStatus } from '../../../src/features/payments/service';
+import * as Location from 'expo-location';
+import type { LocationPayload } from '../../../src/hooks/useLocationPicker';
 
 const translateStatus = (status: string): string => {
   const statusMap: Record<string, string> = {
@@ -39,6 +42,7 @@ export default function ShipmentDetail() {
   const [current, setCurrent] = useState<string>('created');
   const [saving, setSaving] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus | null>(null);
+  const currentLocationRef = useRef<LocationPayload | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -71,7 +75,42 @@ export default function ShipmentDetail() {
   const onChange = async (status: any) => {
     try {
       setSaving(status);
-      await updateShipmentStatus(id!, status);
+      
+      // Obtener ubicación actual si es necesario (para drivers cambiando picked_up o delivered)
+      let location: LocationPayload | undefined;
+      if (role === 'driver' && (status === 'picked_up' || status === 'delivered')) {
+        try {
+          const { status: permStatus } = await Location.requestForegroundPermissionsAsync();
+          if (permStatus === Location.PermissionStatus.GRANTED) {
+            const current = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+            });
+            location = {
+              coords: {
+                accuracy: current.coords.accuracy ?? 0,
+                altitude: current.coords.altitude ?? 0,
+                altitudeAccuracy: current.coords.altitudeAccuracy ?? 0,
+                heading: current.coords.heading ?? 0,
+                latitude: current.coords.latitude,
+                longitude: current.coords.longitude,
+                speed: current.coords.speed ?? 0,
+              },
+              mocked: Boolean((current as any).mocked),
+              timestamp: current.timestamp,
+            };
+          } else {
+            Alert.alert('Permisos requeridos', 'Se necesitan permisos de ubicación para cambiar este estado.');
+            setSaving(null);
+            return;
+          }
+        } catch (locError) {
+          Alert.alert('Error', 'No se pudo obtener la ubicación actual. Por favor, intenta nuevamente.');
+          setSaving(null);
+          return;
+        }
+      }
+      
+      await updateShipmentStatus(id!, status, undefined, location);
       await load();
       Alert.alert('Listo', `Estado actualizado a ${translateStatus(status)}`);
     } catch (e: any) {
@@ -80,6 +119,23 @@ export default function ShipmentDetail() {
       setSaving(null);
     }
   };
+
+  const handleLocationUpdate = useCallback((location: { latitude: number; longitude: number }) => {
+    // Guardar la ubicación actual para usarla cuando se cambie el estado
+    currentLocationRef.current = {
+      coords: {
+        accuracy: 0,
+        altitude: 0,
+        altitudeAccuracy: 0,
+        heading: 0,
+        latitude: location.latitude,
+        longitude: location.longitude,
+        speed: 0,
+      },
+      mocked: false,
+      timestamp: Date.now(),
+    };
+  }, []);
 
   const getStatusIcon = (status: string): keyof typeof Ionicons.glyphMap => {
     const iconMap: Record<string, keyof typeof Ionicons.glyphMap> = {
@@ -143,6 +199,16 @@ export default function ShipmentDetail() {
           shipmentId={id!}
           price={shipment.price}
           onPaymentStatusChange={setPaymentStatus}
+        />
+      )}
+
+      {/* Mapa de tracking - Solo para drivers cuando el pedido está asignado, recogido o en tránsito */}
+      {role === 'driver' && shipment && (current === 'assigned' || current === 'picked_up' || current === 'in_transit') && (
+        <ShipmentTrackingMap
+          pickupAddress={shipment.pickup_address}
+          dropoffAddress={shipment.dropoff_address}
+          currentStatus={current}
+          onLocationUpdate={handleLocationUpdate}
         />
       )}
 

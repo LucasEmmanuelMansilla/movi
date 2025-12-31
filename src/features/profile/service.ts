@@ -15,6 +15,14 @@ export type Profile = {
   vehicle_type: string | null;
   vehicle_plate: string | null;
   is_available: boolean | null;
+  // Campos bancarios (para drivers)
+  bank_account_type: 'checking' | 'savings' | 'cbu' | 'cvu' | 'alias' | null;
+  bank_cbu: string | null;
+  bank_cvu: string | null;
+  bank_alias: string | null;
+  bank_name: string | null;
+  bank_account_number: string | null;
+  bank_account_holder_name: string | null;
   // Campos específicos para business
   business_name: string | null;
   business_address: string | null;
@@ -34,6 +42,14 @@ export type UpdateProfileData = {
   vehicle_type?: string;
   vehicle_plate?: string;
   is_available?: boolean;
+  // Campos bancarios (para drivers)
+  bank_account_type?: 'checking' | 'savings' | 'cbu' | 'cvu' | 'alias';
+  bank_cbu?: string;
+  bank_cvu?: string;
+  bank_alias?: string;
+  bank_name?: string;
+  bank_account_number?: string;
+  bank_account_holder_name?: string;
   // Campos específicos para business
   business_name?: string;
   business_address?: string;

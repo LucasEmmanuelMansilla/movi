@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { useProfileForm } from '../../src/hooks/useProfileForm';
 import { AvatarPicker } from '../../src/components/profile/AvatarPicker';
 import { ProfileSection } from '../../src/components/profile/ProfileSection';
+import { BankAccountForm } from '../../src/components/profile/BankAccountForm';
 import { imageToBase64 } from '../../src/utils/imageConverter';
 import { colors, spacing } from '../../src/ui/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -68,7 +69,14 @@ export default function ProfileScreen() {
           formData.license_number !== (profile.license_number || '') ||
           formData.vehicle_type !== (profile.vehicle_type || '') ||
           formData.vehicle_plate !== (profile.vehicle_plate || '') ||
-          formData.is_available !== (profile.is_available ?? true)
+          formData.is_available !== (profile.is_available ?? true) ||
+          formData.bank_account_type !== (profile.bank_account_type || '') ||
+          formData.bank_cbu !== (profile.bank_cbu || '') ||
+          formData.bank_cvu !== (profile.bank_cvu || '') ||
+          formData.bank_alias !== (profile.bank_alias || '') ||
+          formData.bank_name !== (profile.bank_name || '') ||
+          formData.bank_account_number !== (profile.bank_account_number || '') ||
+          formData.bank_account_holder_name !== (profile.bank_account_holder_name || '')
         )) ||
         (profile.role === 'business' && (
           formData.business_name !== (profile.business_name || '') ||
@@ -252,6 +260,23 @@ export default function ProfileScreen() {
             />
           </View>
         </ProfileSection>
+      )}
+
+      {/* Formulario de cuenta bancaria (solo para drivers) */}
+      {isDriver && (
+        <BankAccountForm
+          formData={{
+            bank_account_type: formData.bank_account_type,
+            bank_cbu: formData.bank_cbu,
+            bank_cvu: formData.bank_cvu,
+            bank_alias: formData.bank_alias,
+            bank_name: formData.bank_name,
+            bank_account_number: formData.bank_account_number,
+            bank_account_holder_name: formData.bank_account_holder_name,
+          }}
+          errors={errors}
+          updateField={updateField}
+        />
       )}
 
       {isBusiness && (

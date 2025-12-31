@@ -13,6 +13,14 @@ export type ProfileFormData = {
   vehicle_type: string;
   vehicle_plate: string;
   is_available: boolean;
+  // Campos bancarios (para drivers)
+  bank_account_type: 'checking' | 'savings' | 'cbu' | 'cvu' | 'alias' | '';
+  bank_cbu: string;
+  bank_cvu: string;
+  bank_alias: string;
+  bank_name: string;
+  bank_account_number: string;
+  bank_account_holder_name: string;
   // Campos específicos para business
   business_name: string;
   business_address: string;
@@ -33,6 +41,13 @@ export function useProfileForm() {
     vehicle_type: '',
     vehicle_plate: '',
     is_available: true,
+    bank_account_type: '',
+    bank_cbu: '',
+    bank_cvu: '',
+    bank_alias: '',
+    bank_name: '',
+    bank_account_number: '',
+    bank_account_holder_name: '',
     business_name: '',
     business_address: '',
   });
@@ -55,6 +70,13 @@ export function useProfileForm() {
         vehicle_type: p.vehicle_type || '',
         vehicle_plate: p.vehicle_plate || '',
         is_available: p.is_available ?? true,
+        bank_account_type: p.bank_account_type || '',
+        bank_cbu: p.bank_cbu || '',
+        bank_cvu: p.bank_cvu || '',
+        bank_alias: p.bank_alias || '',
+        bank_name: p.bank_name || '',
+        bank_account_number: p.bank_account_number || '',
+        bank_account_holder_name: p.bank_account_holder_name || '',
         business_name: p.business_name || '',
         business_address: p.business_address || '',
       });
@@ -174,6 +196,16 @@ export function useProfileForm() {
         updateData.vehicle_type = formData.vehicle_type.trim() || undefined;
         updateData.vehicle_plate = formData.vehicle_plate.trim() || undefined;
         updateData.is_available = formData.is_available;
+        // Campos bancarios
+        if (formData.bank_account_type) {
+          updateData.bank_account_type = formData.bank_account_type as 'checking' | 'savings' | 'cbu' | 'cvu' | 'alias';
+        }
+        updateData.bank_cbu = formData.bank_cbu.trim() || undefined;
+        updateData.bank_cvu = formData.bank_cvu.trim() || undefined;
+        updateData.bank_alias = formData.bank_alias.trim() || undefined;
+        updateData.bank_name = formData.bank_name.trim() || undefined;
+        updateData.bank_account_number = formData.bank_account_number.trim() || undefined;
+        updateData.bank_account_holder_name = formData.bank_account_holder_name.trim() || undefined;
       } else if (profile?.role === 'business') {
         updateData.business_name = formData.business_name.trim() || undefined;
         updateData.business_address = formData.business_address.trim() || undefined;

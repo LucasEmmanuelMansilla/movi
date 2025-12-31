@@ -157,6 +157,7 @@ export type Database = {
           pickup_address: string
           price: number | null
           title: string
+          weight: number
         }
         Insert: {
           created_at?: string
@@ -168,6 +169,7 @@ export type Database = {
           pickup_address: string
           price?: number | null
           title: string
+          weight: number
         }
         Update: {
           created_at?: string
@@ -179,6 +181,7 @@ export type Database = {
           pickup_address?: string
           price?: number | null
           title?: string
+          weight?: number
         }
         Relationships: [
           {

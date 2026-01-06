@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { listShipmentStatuses, updateShipmentStatus, getShipmentById, type ShipmentStatusRow, type Shipment } from '../../../src/features/shipments/service';
 import { PaymentSection } from '../../../src/components/payments/PaymentSection';
 import { ShipmentTrackingMap } from '../../../src/components/shipments/ShipmentTrackingMap';
 import { useAuthStore } from '../../../src/store/useAuthStore';
+import { useAlertStore } from '../../../src/store/useAlertStore';
 import { colors, spacing, radii } from '../../../src/ui/theme';
 import { Ionicons } from '@expo/vector-icons';
 import type { PaymentStatus } from '../../../src/features/payments/service';
@@ -36,6 +37,7 @@ const NEXT_STATES: Record<string, string[]> = {
 export default function ShipmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { role } = useAuthStore();
+  const { showAlert } = useAlertStore();
   const [items, setItems] = useState<ShipmentStatusRow[]>([]);
   const [shipment, setShipment] = useState<Shipment | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,11 +57,14 @@ export default function ShipmentDetail() {
       setCurrent(statuses[statuses.length - 1]?.status || 'created');
       setShipment(shipmentData);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'No se pudo cargar el detalle');
+      showAlert({
+        title: 'Error',
+        message: e.message || 'No se pudo cargar el detalle'
+      });
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, showAlert]);
 
   useEffect(() => { 
     load(); 
@@ -99,12 +104,18 @@ export default function ShipmentDetail() {
               timestamp: current.timestamp,
             };
           } else {
-            Alert.alert('Permisos requeridos', 'Se necesitan permisos de ubicación para cambiar este estado.');
+            showAlert({
+              title: 'Permisos requeridos',
+              message: 'Se necesitan permisos de ubicación para cambiar este estado.'
+            });
             setSaving(null);
             return;
           }
         } catch (locError) {
-          Alert.alert('Error', 'No se pudo obtener la ubicación actual. Por favor, intenta nuevamente.');
+          showAlert({
+            title: 'Error',
+            message: 'No se pudo obtener la ubicación actual. Por favor, intenta nuevamente.'
+          });
           setSaving(null);
           return;
         }
@@ -112,9 +123,15 @@ export default function ShipmentDetail() {
       
       await updateShipmentStatus(id!, status, undefined, location);
       await load();
-      Alert.alert('Listo', `Estado actualizado a ${translateStatus(status)}`);
+      showAlert({
+        title: 'Listo',
+        message: `Estado actualizado a ${translateStatus(status)}`
+      });
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'No se pudo actualizar');
+      showAlert({
+        title: 'Error',
+        message: e.message || 'No se pudo actualizar'
+      });
     } finally {
       setSaving(null);
     }

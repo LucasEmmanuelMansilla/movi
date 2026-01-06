@@ -14,41 +14,59 @@ type AlertConfig = {
   buttons?: ButtonProps[];
 };
 
+type CustomAlertProps = {
+  visible?: boolean;
+  onClose?: () => void;
+  config?: AlertConfig;
+};
+
 type CustomAlertHandles = {
   show: (config: AlertConfig) => void;
   hide: () => void;
 };
 
-const CustomAlert = forwardRef<CustomAlertHandles>((_, ref) => {
-  const [visible, setVisible] = useState(false);
-  const [config, setConfig] = useState<AlertConfig>({
+const CustomAlert = forwardRef<CustomAlertHandles, CustomAlertProps>(({ visible: propsVisible, onClose: propsOnClose, config: propsConfig }, ref) => {
+  const [internalVisible, setInternalVisible] = useState(false);
+  const [internalConfig, setInternalConfig] = useState<AlertConfig>({
     title: '',
     message: '',
     buttons: [],
   });
 
+  const isControlled = propsVisible !== undefined;
+  const visible = isControlled ? propsVisible : internalVisible;
+  const config = isControlled ? (propsConfig || internalConfig) : internalConfig;
+
   useImperativeHandle(ref, () => ({
     show: (alertConfig: AlertConfig) => {
-      setConfig({
+      setInternalConfig({
         title: alertConfig.title,
         message: alertConfig.message,
         buttons: alertConfig.buttons || [
-          { text: 'Aceptar', onPress: () => setVisible(false) },
+          { text: 'Aceptar', onPress: () => setInternalVisible(false) },
         ],
       });
-      setVisible(true);
+      setInternalVisible(true);
     },
-    hide: () => setVisible(false),
+    hide: () => setInternalVisible(false),
   }));
 
   if (!visible) return null;
+
+  const handleClose = () => {
+    if (isControlled) {
+      propsOnClose?.();
+    } else {
+      setInternalVisible(false);
+    }
+  };
 
   return (
     <Modal
       animationType="fade"
       transparent={true}
       visible={visible}
-      onRequestClose={() => setVisible(false)}
+      onRequestClose={handleClose}
     >
       <View style={styles.centeredView}>
         <View style={styles.modalView}>
@@ -62,7 +80,7 @@ const CustomAlert = forwardRef<CustomAlertHandles>((_, ref) => {
                 onPress={() => {
                   button.onPress?.();
                   if (button.text !== 'Cancelar' && !button.text.includes('Reenviar')) {
-                    setVisible(false);
+                    handleClose();
                   }
                 }}
               >

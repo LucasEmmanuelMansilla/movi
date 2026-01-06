@@ -47,6 +47,23 @@ export default {
           // Otras rutas de la app...
         },
       },
+      // Rutas para OAuth de Mercado Pago
+      'mp/oauth/success': {
+        path: 'mp/oauth/success',
+        parse: {
+          mp_user_id: String,
+          access_token: String,
+          refresh_token: String,
+          expires_in: String,
+        },
+      },
+      'mp/oauth/error': {
+        path: 'mp/oauth/error',
+        parse: {
+          error: String,
+          error_description: String,
+        },
+      },
       // Otras rutas...
     },
   },

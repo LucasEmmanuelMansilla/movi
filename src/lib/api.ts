@@ -1,4 +1,5 @@
 import { useAuthStore } from '../../src/store/useAuthStore';
+import { useAlertStore } from '../../src/store/useAlertStore';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
@@ -180,7 +181,17 @@ export async function api<T = any>(path: string, options: RequestInit = {}): Pro
 
     // Si es 401, NO reintentar - lanzar error directamente
     if (response.status === 401) {
-      throw await parseErrorResponse(response);
+      const error = await parseErrorResponse(response);
+      
+      // Cerrar sesión automáticamente y mostrar alerta global
+      useAuthStore.getState().signOut();
+      useAlertStore.getState().showAlert({
+        title: 'Sesión expirada',
+        message: 'Tu sesión ha vencido por seguridad. Por favor, inicia sesión de nuevo.',
+        buttons: [{ text: 'Aceptar' }]
+      });
+
+      throw error;
     }
 
     if (!response.ok) {

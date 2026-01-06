@@ -1,14 +1,19 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View } from 'react-native';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { usePushNotifications } from '../../src/features/push/usePushNotifications';
 
 export default function AppLayout() {
-  const { role } = useAuthStore();
+  const { user, role, isLoading } = useAuthStore();
   
   // Registrar push notifications cuando el usuario está autenticado
   usePushNotifications();
+
+  // Si no hay usuario y no está cargando, redirigir al login
+  if (!isLoading && !user) {
+    return <Redirect href="/(auth)/login" />;
+  }
   
   return (
     <View style={{ paddingTop: '20%', flex: 1, backgroundColor: '#F3F4F6' }}>

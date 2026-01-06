@@ -8,12 +8,15 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: "1.0.0",
   orientation: "portrait",
   ios: {
+    ...config.ios,
     bundleIdentifier: "com.movi.app"
   },
   android: {
+    ...config.android,
     package: "com.movi.app"
   },
   extra: {
+    ...config.extra,
     theme: {
       primary: "#053959",
       accent: "#09c577",

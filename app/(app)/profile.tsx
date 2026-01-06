@@ -8,6 +8,7 @@ import { useProfileForm } from '../../src/hooks/useProfileForm';
 import { AvatarPicker } from '../../src/components/profile/AvatarPicker';
 import { ProfileSection } from '../../src/components/profile/ProfileSection';
 import { BankAccountForm } from '../../src/components/profile/BankAccountForm';
+import { MercadoPagoConnect } from '../../src/components/mercadopago/MercadoPagoConnect';
 import { imageToBase64 } from '../../src/utils/imageConverter';
 import { colors, spacing } from '../../src/ui/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -263,7 +264,7 @@ export default function ProfileScreen() {
       )}
 
       {/* Formulario de cuenta bancaria (solo para drivers) */}
-      {isDriver && (
+      {/* {isDriver && (
         <BankAccountForm
           formData={{
             bank_account_type: formData.bank_account_type,
@@ -277,6 +278,11 @@ export default function ProfileScreen() {
           errors={errors}
           updateField={updateField}
         />
+      )} */}
+
+      {/* Conexión con Mercado Pago (solo para drivers) */}
+      {isDriver && (
+        <MercadoPagoConnect />
       )}
 
       {isBusiness && (

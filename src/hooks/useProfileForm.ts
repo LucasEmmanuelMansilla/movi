@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { getMyProfile, updateMyProfile, type Profile, type UpdateProfileData } from '../features/profile/service';
 import { isValidEmail, isValidPhone, isValidAddress } from '../utils/validation';
 import { useAuthStore } from '../store/useAuthStore';
+import { isAuthError } from '../utils/errorHandler';
 
 export type ProfileFormData = {
   full_name: string;
@@ -82,6 +83,7 @@ export function useProfileForm() {
       });
       setAvatarUri(p.avatar_url);
     } catch (error: any) {
+      if (isAuthError(error)) return; // El error 401 ya se maneja globalmente en api.ts
       throw new Error(error.message || 'No se pudo cargar el perfil');
     } finally {
       setLoading(false);
@@ -218,6 +220,7 @@ export function useProfileForm() {
       }
       return true;
     } catch (error: any) {
+      if (isAuthError(error)) return false; // El error 401 ya se maneja globalmente en api.ts
       throw new Error(error.message || 'No se pudo actualizar el perfil');
     } finally {
       setSaving(false);

@@ -305,7 +305,11 @@ export function PaymentSection({ shipmentId, price, shipmentStatus, onPaymentSta
         {payment.status === 'approved' && shipmentStatus === 'delivered' && (
           <View style={styles.payoutContainer}>
             <Text style={styles.payoutTitle}>Pago al conductor</Text>
-            {payment.driver_transfers && payment.driver_transfers.some(t => t.status === 'completed') ? (
+            {payment.driver_transfers && (
+              Array.isArray(payment.driver_transfers)
+                ? payment.driver_transfers.some(t => t.status === 'completed')
+                : payment.driver_transfers.status === 'completed'
+            ) ? (
               <View style={styles.transferredBadge}>
                 <Ionicons name="checkmark-done-circle" size={20} color="#10B981" />
                 <Text style={styles.transferredText}>Pago transferido exitosamente</Text>

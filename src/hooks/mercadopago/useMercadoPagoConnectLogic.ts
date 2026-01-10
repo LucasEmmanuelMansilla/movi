@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Alert, Linking } from 'react-native';
-import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
 import { 
   getMercadoPagoOAuthUrl, 
   connectMercadoPago, 
@@ -8,7 +7,6 @@ import {
   type MercadoPagoOAuthStatus 
 } from '../../features/mercadopago/service';
 import { getErrorMessage } from '../../utils/errorHandler';
-import { colors } from '../../ui/theme';
 
 interface UseMercadoPagoConnectLogicProps {
   onStatusChange?: (status: MercadoPagoOAuthStatus) => void;
@@ -127,16 +125,10 @@ export function useMercadoPagoConnectLogic({ onStatusChange }: UseMercadoPagoCon
         return;
       }
 
-      const canOpen = await openBrowserAsync(oauthUrl, {
-        presentationStyle: WebBrowserPresentationStyle.FULL_SCREEN,
-        enableBarCollapsing: false,
-        controlsColor: colors.accent,
-      });
-
-      if (!canOpen) {
-        Alert.alert('Error', 'No se puede abrir la URL de OAuth');
-        setConnecting(false);
-      }
+      // Abrir la URL directamente con el sistema. 
+      // Al ser una URL de auth.mercadopago.com, si la app de MP está instalada 
+      // y tiene habilitados los App Links, el sistema debería ofrecer abrirla con la App.
+      await Linking.openURL(oauthUrl);
     } catch (error: any) {
       const errorMessage = getErrorMessage(error);
       if (error.statusCode === 503 || errorMessage.includes('no está configurado')) {
@@ -146,7 +138,7 @@ export function useMercadoPagoConnectLogic({ onStatusChange }: UseMercadoPagoCon
           [{ text: 'Aceptar' }]
         );
       } else {
-        Alert.alert('Error', `No se pudo abrir OAuth: ${errorMessage}`);
+        Alert.alert('Error', `No se pudo abrir Mercado Pago: ${errorMessage}`);
       }
       setConnecting(false);
     }

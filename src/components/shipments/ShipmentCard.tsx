@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Shipment } from '../../features/shipments/service';
-import { translateStatus } from '../../utils/shipmentUtils';
+import { translateStatus, formatAddress } from '../../utils/shipmentUtils';
 import { colors, spacing, radii } from '../../ui/theme';
 
 interface ShipmentCardProps {
@@ -23,12 +23,12 @@ export const ShipmentCard: React.FC<ShipmentCardProps> = ({ item, onAccept, isAc
       <View style={styles.addressSection}>
         <View style={styles.addressRow}>
           <Text style={styles.label}>📍 Retiro:</Text>
-          <Text style={styles.text} numberOfLines={1}>{item.pickup_address}</Text>
+          <Text style={styles.text} numberOfLines={1}>{formatAddress(item.pickup_address)}</Text>
         </View>
         
         <View style={styles.addressRow}>
           <Text style={styles.label}>🎯 Entrega:</Text>
-          <Text style={styles.text} numberOfLines={1}>{item.dropoff_address}</Text>
+          <Text style={styles.text} numberOfLines={1}>{formatAddress(item.dropoff_address)}</Text>
         </View>
       </View>
 

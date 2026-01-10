@@ -38,43 +38,36 @@ export function useAvailableShipments() {
     load();
   }, [load]);
 
-  // Suscripción en tiempo real para nuevos envíos
+  // Suscripción en tiempo real para nuevos envíos (Broadcast - Sin necesidad de réplica)
   useEffect(() => {
+    console.log('Iniciando canal de broadcast para envíos...');
+    
     const channel = supabase
-      .channel('available-shipments')
+      .channel('global:shipments')
       .on(
-        'postgres_changes',
-        {
-          event: '*', // Escuchar todos los cambios (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'shipments',
-        },
+        'broadcast',
+        { event: 'new_shipment' },
         (payload) => {
-          console.log('Cambio en envíos detectado en tiempo real:', payload.eventType);
-          
-          // Si es un nuevo envío publicado o un cambio de estado, recargar la lista
-          // Solo nos interesan envíos con estado 'created' para la lista de disponibles
-          const newShipment = payload.new as Shipment;
-          const oldShipment = payload.old as Shipment;
-
-          if (payload.eventType === 'INSERT' && newShipment.current_status === 'created') {
-            load(true);
-          } else if (payload.eventType === 'UPDATE') {
-            // Si cambió a 'created' (publicado) o dejó de ser 'created' (aceptado/cancelado)
-            if (
-              (newShipment.current_status === 'created' && oldShipment?.current_status !== 'created') ||
-              (newShipment.current_status !== 'created' && oldShipment?.current_status === 'created')
-            ) {
-              load(true);
-            }
-          } else if (payload.eventType === 'DELETE') {
-            load(true);
-          }
+          console.log('📢 Nuevo envío detectado vía Broadcast:', payload);
+          // Pequeño delay de seguridad para asegurar que la DB terminó de persistir el cambio
+          setTimeout(() => load(true), 1000);
         }
       )
-      .subscribe();
+      .on(
+        'broadcast',
+        { event: 'shipment_updated' },
+        (payload) => {
+          console.log('📢 Envío actualizado vía Broadcast:', payload);
+          // Recargar para quitar de la lista si ya no está disponible
+          load(true);
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Estado del canal de broadcast:', status);
+      });
 
     return () => {
+      console.log('Cerrando canal de broadcast');
       supabase.removeChannel(channel);
     };
   }, [load]);

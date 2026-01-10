@@ -15,6 +15,8 @@ type Props = {
   shipments: Shipment[];
   onAccept: (id: string) => void;
   isAccepting: (id: string) => boolean;
+  initialRegion?: Region | null;
+  onRegionChange?: (region: Region) => void;
 };
 
 const { width, height } = Dimensions.get('window');
@@ -28,8 +30,8 @@ const geocodeAddress = async (address: string): Promise<{ lat: number; lng: numb
     // Intentar parsear si es JSON (como hace el servidor)
     try {
       const parsed = JSON.parse(address);
-      if (parsed.lat && parsed.lng) {
-        return { lat: parsed.lat, lng: parsed.lng };
+      if (typeof parsed === 'object' && parsed.lat && parsed.lng) {
+        return { lat: Number(parsed.lat), lng: Number(parsed.lng) };
       }
     } catch (e) {
       // No es JSON, continuar con geocodificación
@@ -62,13 +64,29 @@ const geocodeAddress = async (address: string): Promise<{ lat: number; lng: numb
   }
 };
 
-export function AvailableShipmentsMap({ shipments, onAccept, isAccepting }: Props) {
+export function AvailableShipmentsMap({ shipments, onAccept, isAccepting, initialRegion, onRegionChange }: Props) {
   const mapRef = useRef<MapView>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [shipmentsWithCoords, setShipmentsWithCoords] = useState<ShipmentWithCoords[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedShipment, setSelectedShipment] = useState<ShipmentWithCoords | null>(null);
-  const [region, setRegion] = useState<Region | null>(null);
+  const [isMapReady, setIsMapReady] = useState(false);
+  
+  // Región inicial por defecto si no hay una previa
+  const [region, setRegion] = useState<Region>(initialRegion || {
+    latitude: -34.6037,
+    longitude: -58.3816,
+    latitudeDelta: LATITUDE_DELTA,
+    longitudeDelta: LONGITUDE_DELTA,
+  });
+  const [hasSetInitialRegion, setHasSetInitialRegion] = useState(!!initialRegion);
+
+  // Animar cuando el mapa esté listo y tengamos una región
+  useEffect(() => {
+    if (isMapReady && mapRef.current && region) {
+      mapRef.current.animateToRegion(region, 1000);
+    }
+  }, [isMapReady]);
 
   // Obtener ubicación del usuario
   useEffect(() => {
@@ -81,19 +99,49 @@ export function AvailableShipmentsMap({ shipments, onAccept, isAccepting }: Prop
           return;
         }
 
-        const location = await Location.getCurrentPositionAsync({});
+        // Intento rápido con última ubicación conocida
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown?.coords && !hasSetInitialRegion) {
+          const newRegion = {
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
+            latitudeDelta: LATITUDE_DELTA,
+            longitudeDelta: LONGITUDE_DELTA,
+          };
+          setRegion(newRegion);
+          setUserLocation(lastKnown.coords);
+          if (mapRef.current) {
+            mapRef.current.animateToRegion(newRegion, 500);
+          }
+        }
+
+        // Obtener ubicación precisa
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        
         const coords = {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
         };
         setUserLocation(coords);
         
-        const initialRegion = {
-          ...coords,
-          latitudeDelta: LATITUDE_DELTA,
-          longitudeDelta: LONGITUDE_DELTA,
-        };
-        setRegion(initialRegion);
+        // Actualizar región si es necesario
+        if (!hasSetInitialRegion) {
+          const newRegion = {
+            ...coords,
+            latitudeDelta: LATITUDE_DELTA,
+            longitudeDelta: LONGITUDE_DELTA,
+          };
+          setRegion(newRegion);
+          setHasSetInitialRegion(true);
+          
+          if (mapRef.current) {
+            mapRef.current.animateToRegion(newRegion, 1000);
+          }
+          
+          if (onRegionChange) onRegionChange(newRegion);
+        }
       } catch (error) {
         console.error('Error obteniendo ubicación:', error);
       } finally {
@@ -102,7 +150,7 @@ export function AvailableShipmentsMap({ shipments, onAccept, isAccepting }: Prop
     })();
   }, []);
 
-  // Geocodificar envíos
+  // Geocodificar envíos - solo cuando cambian los envíos
   useEffect(() => {
     const loadShipmentsCoords = async () => {
       if (shipments.length === 0) {
@@ -112,8 +160,26 @@ export function AvailableShipmentsMap({ shipments, onAccept, isAccepting }: Prop
       }
 
       setLoading(true);
+      
+      // Separar envíos que ya tienen coordenadas de los que necesitan geocodificación
       const results = await Promise.all(
         shipments.map(async (s) => {
+          // Intentar extraer coordenadas del campo pickup_address (formato JSON)
+          const parsed = (function() {
+            try {
+              const p = JSON.parse(s.pickup_address);
+              if (typeof p === 'object' && p.lat && p.lng) return { lat: Number(p.lat), lng: Number(p.lng) };
+            } catch (e) {}
+            return null;
+          })();
+
+          if (parsed) {
+            return { ...s, coords: { latitude: parsed.lat, longitude: parsed.lng } };
+          }
+
+          // Si no tiene coordenadas, geocodificar (solo como fallback)
+          // Usamos un pequeño delay para evitar bloqueos por rate limit si hay muchos
+          await new Promise(resolve => setTimeout(resolve, 200)); 
           const coords = await geocodeAddress(s.pickup_address);
           return {
             ...s,
@@ -125,24 +191,33 @@ export function AvailableShipmentsMap({ shipments, onAccept, isAccepting }: Prop
       const filtered = results.filter((s) => s.coords !== undefined);
       setShipmentsWithCoords(filtered);
       setLoading(false);
-
-      // Si tenemos ubicación de usuario y envíos, ajustar el mapa para mostrar todo
-      if (userLocation && filtered.length > 0 && mapRef.current) {
-        const points = [
-          userLocation,
-          ...filtered.map(s => s.coords!)
-        ];
-        mapRef.current.fitToCoordinates(points, {
-          edgePadding: { top: 50, right: 50, bottom: 250, left: 50 },
-          animated: true,
-        });
-      }
     };
 
     loadShipmentsCoords();
-  }, [shipments, userLocation]);
+  }, [shipments]); 
 
-  if (loading && shipmentsWithCoords.length === 0) {
+  // Ajustar vista cuando cargan los envíos por primera vez o cambian significativamente
+  useEffect(() => {
+    if (userLocation && shipmentsWithCoords.length > 0 && mapRef.current && !initialRegion) {
+      const points = [
+        userLocation,
+        ...shipmentsWithCoords.map(s => s.coords!)
+      ];
+      mapRef.current.fitToCoordinates(points, {
+        edgePadding: { top: 50, right: 50, bottom: 250, left: 50 },
+        animated: true,
+      });
+    }
+  }, [shipmentsWithCoords.length, !!userLocation]);
+
+  const handleRegionChangeComplete = (newRegion: Region) => {
+    setRegion(newRegion);
+    if (onRegionChange) {
+      onRegionChange(newRegion);
+    }
+  };
+
+  if (loading && shipmentsWithCoords.length === 0 && !region) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={colors.accent} />
@@ -156,9 +231,11 @@ export function AvailableShipmentsMap({ shipments, onAccept, isAccepting }: Prop
       <MapView
         ref={mapRef}
         style={styles.map}
-        initialRegion={region || undefined}
+        initialRegion={region}
+        onRegionChangeComplete={handleRegionChangeComplete}
+        onMapReady={() => setIsMapReady(true)}
         showsUserLocation={true}
-        showsMyLocationButton={true}
+        showsMyLocationButton={false} // Usamos nuestro propio botón
         onPress={() => setSelectedShipment(null)}
       >
         {shipmentsWithCoords.map((shipment) => (

@@ -22,34 +22,27 @@ export function MapPickerModal({ visible, initialCoords, onConfirm, onClose, tit
   const [marker, setMarker] = useState<{ latitude: number; longitude: number } | null>(initialCoords);
   const [loading, setLoading] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
-  const prevCoordsRef = useRef(initialCoords);
 
-  // Cuando se abre el modal, resetear región y marcador
+  // Sincronizar región y marcador cuando cambian las coordenadas iniciales
   useEffect(() => {
     if (visible) {
       const newRegion = { ...initialCoords, ...DEFAULT_DELTA };
       setRegion(newRegion);
       setMarker(initialCoords);
-      setIsMapReady(false);
-      prevCoordsRef.current = initialCoords;
-    }
-  }, [visible]);
-
-  // Cuando cambian las coordenadas iniciales y el mapa está listo, animar a la nueva ubicación
-  useEffect(() => {
-    if (visible && isMapReady && mapRef.current) {
-      const coordsChanged = 
-        prevCoordsRef.current.latitude !== initialCoords.latitude ||
-        prevCoordsRef.current.longitude !== initialCoords.longitude;
       
-      if (coordsChanged) {
-        const newRegion = { ...initialCoords, ...DEFAULT_DELTA };
+      // Si el mapa ya estaba listo, animamos a la nueva posición
+      if (isMapReady && mapRef.current) {
         mapRef.current.animateToRegion(newRegion, 1000);
-        setMarker(initialCoords);
-        prevCoordsRef.current = initialCoords;
       }
     }
-  }, [visible, initialCoords, isMapReady]);
+  }, [visible, initialCoords.latitude, initialCoords.longitude]);
+
+  // Asegurar animación cuando el mapa termina de cargar por primera vez
+  useEffect(() => {
+    if (visible && isMapReady && mapRef.current) {
+      mapRef.current.animateToRegion({ ...initialCoords, ...DEFAULT_DELTA }, 500);
+    }
+  }, [isMapReady]);
 
   const handlePress = (event: MapPressEvent) => {
     setMarker(event.nativeEvent.coordinate);

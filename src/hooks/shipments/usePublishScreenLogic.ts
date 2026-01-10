@@ -24,6 +24,41 @@ export function usePublishScreenLogic() {
     latitude: -34.6037,
     longitude: -58.3816,
   });
+
+  // Intentar obtener la ubicación actual lo más rápido posible al montar el componente
+  useEffect(() => {
+    const fetchQuickLocation = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === Location.PermissionStatus.GRANTED) {
+          // Primero intentamos la última posición conocida (es instantánea)
+          const lastKnown = await Location.getLastKnownPositionAsync();
+          if (lastKnown?.coords) {
+            setMapInitialCoords({
+              latitude: lastKnown.coords.latitude,
+              longitude: lastKnown.coords.longitude,
+            });
+          }
+          
+          // Luego actualizamos con la posición actual precisa
+          const current = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
+          if (current?.coords) {
+            setMapInitialCoords({
+              latitude: current.coords.latitude,
+              longitude: current.coords.longitude,
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('Error obteniendo ubicación inicial:', error);
+      }
+    };
+
+    fetchQuickLocation();
+  }, []);
+
   const [pickupCoords, setPickupCoords] = useState<GeoPoint | null>(null);
   const [calculatingPrice, setCalculatingPrice] = useState(false);
   const calculationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,25 +93,20 @@ export function usePublishScreenLogic() {
     setMapTarget(type);
     setMapVisible(true);
     
-    // Obtener ubicación actual para centrar el mapa
-    (async () => {
+    // Si la ubicación es la por defecto, intentamos una actualización rápida
+    if (mapInitialCoords.latitude === -34.6037 && mapInitialCoords.longitude === -58.3816) {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === Location.PermissionStatus.GRANTED) {
-          const current = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.Balanced,
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown?.coords) {
+          setMapInitialCoords({
+            latitude: lastKnown.coords.latitude,
+            longitude: lastKnown.coords.longitude,
           });
-          if (current?.coords) {
-            setMapInitialCoords({
-              latitude: current.coords.latitude,
-              longitude: current.coords.longitude,
-            });
-          }
         }
       } catch {
-        // Ignorar si falla la ubicación, el mapa ya tiene coordenadas por defecto
+        // Ignorar
       }
-    })();
+    }
   };
 
   const handleConfirmLocation = async (coords: GeoPoint) => {

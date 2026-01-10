@@ -52,3 +52,19 @@ export const NEXT_STATES: Record<string, string[]> = {
   delivered: [],
   cancelled: [],
 };
+
+/**
+ * Parsea una dirección que puede estar en formato string plano o JSON con coordenadas
+ */
+export const formatAddress = (address: string): string => {
+  if (!address) return '';
+  try {
+    const parsed = JSON.parse(address);
+    if (typeof parsed === 'object' && parsed.address) {
+      return parsed.address;
+    }
+  } catch (e) {
+    // No es JSON, devolver el string original
+  }
+  return address;
+};

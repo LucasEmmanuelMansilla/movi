@@ -24,7 +24,7 @@ export type Payment = {
   paid_at: string | null;
   created_at: string;
   updated_at: string;
-  driver_transfers?: DriverTransfer[];
+  driver_transfers?: DriverTransfer[] | DriverTransfer;
 };
 
 export type CreatePaymentRequest = {

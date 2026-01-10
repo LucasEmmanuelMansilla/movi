@@ -6,6 +6,7 @@ import { LoadingState, ErrorState, EmptyState } from '../../src/components/shipm
 import { AvailableShipmentsMap } from '../../src/components/shipments/AvailableShipmentsMap';
 import { colors, spacing, radii } from '../../src/ui/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { Region } from 'react-native-maps';
 
 /**
  * Pantalla de Envíos Disponibles
@@ -13,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
  */
 export default function AvailableScreen() {
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  const [mapRegion, setMapRegion] = useState<Region | null>(null);
+  
   const {
     items,
     loading,
@@ -52,29 +55,39 @@ export default function AvailableScreen() {
         </View>
       </View>
 
-      {viewMode === 'map' ? (
-        <AvailableShipmentsMap 
-          shipments={items} 
-          onAccept={onAccept}
-          isAccepting={(id) => accepting === id}
-        />
-      ) : (
-        <FlatList
-          contentContainerStyle={styles.listContainer}
-          data={items}
-          keyExtractor={(item) => item.id}
-          onRefresh={() => load(true)}
-          refreshing={refreshing}
-          renderItem={({ item }) => (
-            <ShipmentCard 
-              item={item} 
-              onAccept={onAccept} 
-              isAccepting={accepting === item.id} 
+      <View style={styles.contentContainer}>
+        {/* Mapa - se mantiene montado para persistir estado pero se oculta */}
+        <View style={[styles.viewContainer, viewMode !== 'map' && styles.hiddenView]}>
+          <AvailableShipmentsMap 
+            shipments={items} 
+            onAccept={onAccept}
+            isAccepting={(id) => accepting === id}
+            initialRegion={mapRegion}
+            onRegionChange={setMapRegion}
+          />
+        </View>
+
+        {/* Lista */}
+        {viewMode === 'list' && (
+          <View style={styles.viewContainer}>
+            <FlatList
+              contentContainerStyle={styles.listContainer}
+              data={items}
+              keyExtractor={(item) => item.id}
+              onRefresh={() => load(true)}
+              refreshing={refreshing}
+              renderItem={({ item }) => (
+                <ShipmentCard 
+                  item={item} 
+                  onAccept={onAccept} 
+                  isAccepting={accepting === item.id} 
+                />
+              )}
+              ListEmptyComponent={<EmptyState />}
             />
-          )}
-          ListEmptyComponent={<EmptyState />}
-        />
-      )}
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -93,6 +106,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+    zIndex: 10,
   },
   title: {
     fontSize: 18,
@@ -112,6 +126,15 @@ const styles = StyleSheet.create({
   },
   toggleButtonActive: {
     backgroundColor: colors.accent,
+  },
+  contentContainer: {
+    flex: 1,
+  },
+  viewContainer: {
+    flex: 1,
+  },
+  hiddenView: {
+    display: 'none',
   },
   listContainer: { 
     padding: spacing.md,

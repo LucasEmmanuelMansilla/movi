@@ -1,276 +1,120 @@
-import { useEffect, useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
-import { acceptShipment, listShipments, type Shipment } from '../../src/features/shipments/service';
-import { getErrorMessage, isNetworkError } from '../../src/utils/errorHandler';
-import { usePushNotificationListener } from '../../src/features/push/usePushNotifications';
+import React, { useState } from 'react';
+import { FlatList, StyleSheet, View, TouchableOpacity, Text } from 'react-native';
+import { useAvailableShipments } from '../../src/hooks/shipments/useAvailableShipments';
+import { ShipmentCard } from '../../src/components/shipments/ShipmentCard';
+import { LoadingState, ErrorState, EmptyState } from '../../src/components/shipments/AvailableStates';
+import { AvailableShipmentsMap } from '../../src/components/shipments/AvailableShipmentsMap';
+import { colors, spacing, radii } from '../../src/ui/theme';
+import { Ionicons } from '@expo/vector-icons';
 
-const translateStatus = (status: string): string => {
-  const statusMap: Record<string, string> = {
-    created: 'Creado',
-    assigned: 'Asignado',
-    picked_up: 'Recogido',
-    in_transit: 'En tránsito',
-    delivered: 'Entregado',
-    cancelled: 'Cancelado',
-  };
-  return statusMap[status] || status;
-};
-
+/**
+ * Pantalla de Envíos Disponibles
+ * Muestra los envíos que pueden ser aceptados por el conductor, con opción de vista de lista o mapa.
+ */
 export default function AvailableScreen() {
-  const [items, setItems] = useState<Shipment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [accepting, setAccepting] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  const {
+    items,
+    loading,
+    refreshing,
+    accepting,
+    error,
+    load,
+    onAccept,
+  } = useAvailableShipments();
 
-  const load = useCallback(async (isRefresh = false) => {
-    try {
-      if (isRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      setError(null);
-      const data = await listShipments('available');
-      setItems(data);
-    } catch (e: any) {
-      const errorMessage = getErrorMessage(e);
-      setError(errorMessage);
-      if (!isRefresh) {
-        Alert.alert('Error', errorMessage);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // Escuchar notificaciones push y actualizar la lista
-  usePushNotificationListener(
-    () => {
-      // Nuevo envío disponible
-      load(true);
-    },
-    () => {
-      // Estado de envío cambiado
-      load(true);
-    }
-  );
-
-  const onAccept = async (id: string) => {
-    try {
-      setAccepting(id);
-      await acceptShipment(id);
-      Alert.alert('Éxito', 'Envío aceptado exitosamente');
-      await load();
-    } catch (e: any) {
-      const errorMessage = getErrorMessage(e);
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setAccepting(null);
-    }
-  };
-
-  if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#09c577" />
-        <Text style={styles.loadingText}>Cargando envíos...</Text>
-      </View>
-    );
+  if (loading && items.length === 0) {
+    return <LoadingState />;
   }
 
   if (error && items.length === 0) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorTitle}>Error al cargar</Text>
-        <Text style={styles.errorText}>{error}</Text>
-        {isNetworkError(error) && (
-          <Text style={styles.errorHint}>Verifica tu conexión a internet</Text>
-        )}
-        <TouchableOpacity style={styles.retryButton} onPress={() => load()}>
-          <Text style={styles.retryButtonText}>Reintentar</Text>
-        </TouchableOpacity>
-      </View>
-    );
+    return <ErrorState error={error} onRetry={() => load()} />;
   }
 
   return (
-    <FlatList
-      contentContainerStyle={styles.container}
-      data={items}
-      keyExtractor={(i) => i.id}
-      onRefresh={() => load(true)}
-      refreshing={refreshing}
-      renderItem={({ item }) => (
-        <View style={styles.card}>
-          <Text style={styles.title}>{item.title}</Text>
-          {item.description && (
-            <Text style={styles.description}>{item.description}</Text>
-          )}
-          <View style={styles.addressContainer}>
-            <Text style={styles.label}>📍 Retiro:</Text>
-            <Text style={styles.text}>{item.pickup_address}</Text>
-          </View>
-          <View style={styles.addressContainer}>
-            <Text style={styles.label}>🎯 Entrega:</Text>
-            <Text style={styles.text}>{item.dropoff_address}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.price}>
-              💰 {item.price ? `$${item.price.toLocaleString()}` : 'Precio a convenir'}
-            </Text>
-            <Text style={styles.status}>Estado: {translateStatus(item.current_status)}</Text>
-          </View>
+    <View style={styles.mainContainer}>
+      {/* Header con toggle de vista */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Envíos Disponibles</Text>
+        <View style={styles.toggleContainer}>
           <TouchableOpacity 
-            style={[styles.btn, accepting === item.id && styles.btnDisabled]} 
-            onPress={() => onAccept(item.id)} 
-            disabled={accepting === item.id}
+            style={[styles.toggleButton, viewMode === 'list' && styles.toggleButtonActive]}
+            onPress={() => setViewMode('list')}
           >
-            <Text style={styles.btnText}>
-              {accepting === item.id ? 'Aceptando...' : 'Aceptar envío'}
-            </Text>
+            <Ionicons name="list" size={20} color={viewMode === 'list' ? colors.white : colors.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.toggleButton, viewMode === 'map' && styles.toggleButtonActive]}
+            onPress={() => setViewMode('map')}
+          >
+            <Ionicons name="map" size={20} color={viewMode === 'map' ? colors.white : colors.muted} />
           </TouchableOpacity>
         </View>
+      </View>
+
+      {viewMode === 'map' ? (
+        <AvailableShipmentsMap 
+          shipments={items} 
+          onAccept={onAccept}
+          isAccepting={(id) => accepting === id}
+        />
+      ) : (
+        <FlatList
+          contentContainerStyle={styles.listContainer}
+          data={items}
+          keyExtractor={(item) => item.id}
+          onRefresh={() => load(true)}
+          refreshing={refreshing}
+          renderItem={({ item }) => (
+            <ShipmentCard 
+              item={item} 
+              onAccept={onAccept} 
+              isAccepting={accepting === item.id} 
+            />
+          )}
+          ListEmptyComponent={<EmptyState />}
+        />
       )}
-      ListEmptyComponent={
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>No hay envíos disponibles</Text>
-          <Text style={styles.emptyHint}>Los nuevos envíos aparecerán aquí</Text>
-        </View>
-      }
-    />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 12 },
-  centerContainer: {
+  mainContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
+    backgroundColor: colors.background,
   },
-  loadingText: {
-    marginTop: 12,
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#EF4444',
-    marginBottom: 8,
-  },
-  errorText: {
-    color: '#6B7280',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  errorHint: {
-    color: '#9CA3AF',
-    fontSize: 12,
-    marginBottom: 16,
-  },
-  retryButton: {
-    backgroundColor: '#09c577',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
-  },
-  card: { 
-    backgroundColor: 'white', 
-    borderRadius: 10, 
-    padding: 16, 
-    marginBottom: 12, 
-    borderColor: '#E5E7EB', 
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  title: { 
-    fontSize: 18, 
-    fontWeight: '700', 
-    color: '#053959', 
-    marginBottom: 8,
-  },
-  description: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 12,
-  },
-  addressContainer: {
-    marginBottom: 8,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginBottom: 2,
-  },
-  text: { 
-    color: '#053959',
-    fontSize: 14,
-  },
-  infoRow: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
-    marginBottom: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    backgroundColor: colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  price: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#09c577',
-  },
-  status: {
-    fontSize: 12,
-    color: '#6B7280',
-    textTransform: 'capitalize',
-  },
-  btn: { 
-    backgroundColor: '#09c577', 
-    padding: 12, 
-    borderRadius: 8, 
-    alignItems: 'center', 
-    marginTop: 4,
-  },
-  btnDisabled: {
-    opacity: 0.6,
-  },
-  btnText: { 
-    color: '#F3F4F6', 
-    fontWeight: '600',
-    fontSize: 16,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    marginTop: 48,
-    padding: 24,
-  },
-  emptyText: {
+  title: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#053959',
-    marginBottom: 8,
+    fontWeight: '700',
+    color: colors.primary,
   },
-  emptyHint: {
-    fontSize: 14,
-    color: '#6B7280',
+  toggleContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.background,
+    borderRadius: radii.md,
+    padding: 2,
+  },
+  toggleButton: {
+    padding: 8,
+    borderRadius: radii.md - 2,
+    marginHorizontal: spacing.sm,
+  },
+  toggleButtonActive: {
+    backgroundColor: colors.accent,
+  },
+  listContainer: { 
+    padding: spacing.md,
+    flexGrow: 1,
   },
 });

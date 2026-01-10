@@ -47,7 +47,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       profiles: {
         Row: {
           created_at: string
@@ -71,7 +71,7 @@ export type Database = {
           role?: string
         }
         Relationships: []
-      }
+      },
       push_tokens: {
         Row: {
           created_at: string
@@ -103,7 +103,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       shipment_statuses: {
         Row: {
           created_at: string
@@ -145,7 +145,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       shipments: {
         Row: {
           created_at: string
@@ -187,6 +187,58 @@ export type Database = {
           {
             foreignKeyName: "shipments_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      },
+      messages: {
+        Row: {
+          id: string
+          shipment_id: string
+          sender_id: string
+          receiver_id: string
+          content: string
+          created_at: string
+          read_at: string | null
+        }
+        Insert: {
+          id?: string
+          shipment_id: string
+          sender_id: string
+          receiver_id: string
+          content: string
+          created_at?: string
+          read_at?: string | null
+        }
+        Update: {
+          id?: string
+          shipment_id?: string
+          sender_id?: string
+          receiver_id?: string
+          content?: string
+          created_at?: string
+          read_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_shipment_id_fkey"
+            columns: ["shipment_id"]
+            isOneToOne: false
+            referencedRelation: "shipments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_receiver_id_fkey"
+            columns: ["receiver_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

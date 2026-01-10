@@ -12,6 +12,9 @@ export type Shipment = {
   current_status: 'draft' | 'created' | 'assigned' | 'picked_up' | 'in_transit' | 'delivered' | 'cancelled';
   created_at: string;
   created_by: string;
+  driver_assignments?: {
+    driver_id: string;
+  };
 };
 
 export async function createShipment(payload: {

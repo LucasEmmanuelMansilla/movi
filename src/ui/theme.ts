@@ -5,6 +5,10 @@ export const colors = {
   text: '#053959',
   border: '#E5E7EB',
   muted: '#6B7280',
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  white: '#FFFFFF',
 };
 
 export const spacing = {
@@ -15,8 +19,10 @@ export const spacing = {
   xl: 24,
 };
 
-export const radii = {
+export const borderRadius = {
   sm: 8,
   md: 10,
   lg: 12,
 };
+
+export const radii = borderRadius;

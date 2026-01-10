@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Lin
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/useAuthStore';
 import { createPayment, getPaymentByShipment, type Payment, type PaymentStatus } from '../../features/payments/service';
+import { transferToDriver } from '../../features/mercadopago/service';
 import { colors, spacing, radii } from '../../ui/theme';
 import { getErrorMessage } from '../../utils/errorHandler';
 import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
@@ -10,6 +11,7 @@ import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser'
 interface PaymentSectionProps {
   shipmentId: string;
   price: number | null;
+  shipmentStatus?: string;
   onPaymentStatusChange?: (status: PaymentStatus) => void;
 }
 
@@ -43,12 +45,13 @@ const getStatusIcon = (status: PaymentStatus): keyof typeof Ionicons.glyphMap =>
   return iconMap[status] || 'help-circle-outline';
 };
 
-export function PaymentSection({ shipmentId, price, onPaymentStatusChange }: PaymentSectionProps) {
+export function PaymentSection({ shipmentId, price, shipmentStatus, onPaymentStatusChange }: PaymentSectionProps) {
   const { user } = useAuthStore();
   const [payment, setPayment] = useState<Payment | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [transferring, setTransferring] = useState(false);
   const linkingListenerRef = useRef<{ remove: () => void } | null>(null);
 
   const loadPayment = useCallback(async () => {
@@ -169,6 +172,28 @@ export function PaymentSection({ shipmentId, price, onPaymentStatusChange }: Pay
     }
   };
 
+  const handleTransferToDriver = async () => {
+    if (!payment || !payment.driver_id) return;
+
+    try {
+      setTransferring(true);
+      await transferToDriver({
+        driver_id: payment.driver_id,
+        amount: payment.driver_amount,
+        payment_id: payment.id,
+        description: `Pago por envío ${shipmentId}`,
+      });
+      
+      Alert.alert('¡Éxito!', 'El pago ha sido transferido al conductor.');
+      await loadPayment();
+    } catch (error: any) {
+      const errorMessage = getErrorMessage(error);
+      Alert.alert('Error al transferir', errorMessage);
+    } finally {
+      setTransferring(false);
+    }
+  };
+
   // Si el envío no tiene precio, no mostrar nada
   if (!price || price <= 0) {
     return null;
@@ -272,8 +297,44 @@ export function PaymentSection({ shipmentId, price, onPaymentStatusChange }: Pay
           <View style={styles.approvedInfo}>
             <Ionicons name="checkmark-circle-outline" size={18} color="#10B981" />
             <Text style={styles.approvedText}>
-              Pago aprobado. Los conductores ahora pueden aceptar tu envío.
+              Pago aprobado. {payment.driver_id ? 'Un conductor ya está asignado.' : 'Los conductores ahora pueden aceptar tu envío.'}
             </Text>
+          </View>
+        )}
+
+        {payment.status === 'approved' && shipmentStatus === 'delivered' && (
+          <View style={styles.payoutContainer}>
+            <Text style={styles.payoutTitle}>Pago al conductor</Text>
+            {payment.driver_transfers && payment.driver_transfers.some(t => t.status === 'completed') ? (
+              <View style={styles.transferredBadge}>
+                <Ionicons name="checkmark-done-circle" size={20} color="#10B981" />
+                <Text style={styles.transferredText}>Pago transferido exitosamente</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.button, transferring && styles.buttonDisabled]}
+                onPress={() => {
+                  Alert.alert(
+                    'Confirmar transferencia',
+                    `¿Estás seguro de que quieres transferir $${payment.driver_amount.toFixed(2)} al conductor?`,
+                    [
+                      { text: 'Cancelar', style: 'cancel' },
+                      { text: 'Sí, transferir', onPress: handleTransferToDriver }
+                    ]
+                  );
+                }}
+                disabled={transferring}
+              >
+                {transferring ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="send" size={20} color="#FFFFFF" style={styles.buttonIcon} />
+                    <Text style={styles.buttonText}>Transferir ${payment.driver_amount.toFixed(2)} al conductor</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -439,6 +500,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.muted,
     textAlign: 'center',
+  },
+  payoutContainer: {
+    marginTop: spacing.md,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    gap: spacing.sm,
+  },
+  payoutTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  transferredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    padding: spacing.md,
+    borderRadius: radii.sm,
+    gap: spacing.sm,
+  },
+  transferredText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#065F46',
   },
 });
 

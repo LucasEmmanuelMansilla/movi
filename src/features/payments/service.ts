@@ -2,6 +2,14 @@ import { api } from '../../lib/api';
 
 export type PaymentStatus = 'pending' | 'approved' | 'cancelled' | 'refunded';
 
+export type DriverTransfer = {
+  id: string;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  transferred_at: string | null;
+  transfer_method: 'manual' | 'mercadopago' | 'automatic' | 'cash';
+  amount: number;
+};
+
 export type Payment = {
   id: string;
   shipment_id: string;
@@ -16,6 +24,7 @@ export type Payment = {
   paid_at: string | null;
   created_at: string;
   updated_at: string;
+  driver_transfers?: DriverTransfer[];
 };
 
 export type CreatePaymentRequest = {

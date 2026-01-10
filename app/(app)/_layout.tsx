@@ -16,13 +16,13 @@ export default function AppLayout() {
   }
   
   return (
-    <View style={{ paddingTop: '20%', flex: 1, backgroundColor: '#F3F4F6' }}>
+    <View style={{ flex: 1, backgroundColor: '#F3F4F6' }}>
       <Tabs screenOptions={{
         headerStyle: { backgroundColor: '#053959' },
         headerTintColor: '#F3F4F6',
         tabBarActiveTintColor: '#09c577',
         tabBarInactiveTintColor: '#8CA3AF',
-        headerShown: false,
+        headerShown: true,
       }}>
         {/* Para driver: mostrar available, para business: mostrar publish */}
         {role === 'driver' ? (
@@ -30,6 +30,7 @@ export default function AppLayout() {
             name="available" 
             options={{ 
               title: 'Disponibles', 
+              headerShown: false,
               tabBarIcon: ({ color, size }) => (<Ionicons name="bicycle" color={color} size={size} />) 
             }} 
           />
@@ -109,6 +110,31 @@ export default function AppLayout() {
           options={{
             href: null,
             title: 'Pago fallido',
+            tabBarIcon: () => null
+          }}
+        />
+        <Tabs.Screen
+          name="chat/[shipmentId]"
+          options={{
+            href: null,
+            title: 'Chat',
+            tabBarIcon: () => null,
+            tabBarStyle: { display: 'none' }
+          }}
+        />
+        <Tabs.Screen
+          name="wallet"
+          options={{
+            href: null,
+            title: 'Billetera',
+            tabBarIcon: () => null
+          }}
+        />
+        <Tabs.Screen
+          name="admin-transfers"
+          options={{
+            href: null,
+            title: 'Gestión de Pagos',
             tabBarIcon: () => null
           }}
         />

@@ -42,6 +42,21 @@ export async function refreshMercadoPagoToken(): Promise<{ success: boolean; exp
 }
 
 /**
+ * Realiza una transferencia a un driver
+ */
+export async function transferToDriver(payload: {
+  driver_id: string;
+  amount: number;
+  description?: string;
+  payment_id?: string;
+}) {
+  return api<{ success: boolean; transfer: any }>('/mp/transfers', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+/**
  * Obtiene la URL de OAuth de Mercado Pago desde el backend
  */
 export async function getMercadoPagoOAuthUrl(): Promise<string> {

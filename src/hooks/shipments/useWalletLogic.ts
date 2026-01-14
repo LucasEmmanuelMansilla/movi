@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getDriverStats, getDriverTransfers, DriverTransfer, DriverStats } from '../../features/profile/driverService';
+import { getDriverStats, getDriverTransfers, withdrawFunds, DriverTransfer, DriverStats } from '../../features/profile/driverService';
 
 export function useWalletLogic() {
   const [stats, setStats] = useState<DriverStats | null>(null);
@@ -32,12 +32,27 @@ export function useWalletLogic() {
     fetchData();
   }, [fetchData]);
 
+  const withdraw = useCallback(async () => {
+    try {
+      setLoading(true);
+      const result = await withdrawFunds();
+      await fetchData();
+      return result;
+    } catch (error) {
+      console.error('Error withdrawing funds:', error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchData]);
+
   return {
     stats,
     transfers,
     loading,
     refreshing,
     onRefresh,
-    fetchData
+    fetchData,
+    withdraw
   };
 }

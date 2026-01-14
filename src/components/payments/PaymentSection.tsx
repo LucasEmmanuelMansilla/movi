@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, Lin
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/useAuthStore';
 import { createPayment, getPaymentByShipment, type Payment, type PaymentStatus } from '../../features/payments/service';
-import { transferToDriver } from '../../features/mercadopago/service';
 import { colors, spacing, radii } from '../../ui/theme';
 import { getErrorMessage } from '../../utils/errorHandler';
 import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
@@ -51,7 +50,6 @@ export function PaymentSection({ shipmentId, price, shipmentStatus, onPaymentSta
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [transferring, setTransferring] = useState(false);
   const linkingListenerRef = useRef<{ remove: () => void } | null>(null);
 
   const loadPayment = useCallback(async () => {
@@ -79,20 +77,20 @@ export function PaymentSection({ shipmentId, price, shipmentStatus, onPaymentSta
   useEffect(() => {
     const handleDeepLink = async (event: { url: string }) => {
       const url = event.url;
-      
+
       // Verificar si es un deep link de pago
-      if (url.includes('/payments/success') || 
-          url.includes('/payments/failure') || 
-          url.includes('/payments/pending')) {
-        
+      if (url.includes('/payments/success') ||
+        url.includes('/payments/failure') ||
+        url.includes('/payments/pending')) {
+
         // Extraer shipment_id de la URL
         const urlObj = new URL(url);
         const shipmentIdParam = urlObj.searchParams.get('shipment_id');
-        
+
         // Solo procesar si es el shipment_id correcto
         if (shipmentIdParam === shipmentId) {
           console.log('Deep link de pago recibido', { url, shipmentId: shipmentIdParam });
-          
+
           // Re-fetch payment desde el backend (fuente de verdad)
           // Esperar un momento para que el webhook haya procesado
           setTimeout(async () => {
@@ -144,7 +142,7 @@ export function PaymentSection({ shipmentId, price, shipmentStatus, onPaymentSta
       // Usar checkoutUrl que viene del backend (ya seleccionado según entorno)
       const checkoutUrl = response.checkoutUrl || response.sandboxInitPoint || response.initPoint;
       console.log("🚀 ~ handleCreatePayment ~ checkoutUrl:", checkoutUrl)
-      
+
       if (!checkoutUrl) {
         throw new Error('No se recibió URL de checkout');
       }
@@ -158,7 +156,7 @@ export function PaymentSection({ shipmentId, price, shipmentStatus, onPaymentSta
         // Controlar el comportamiento de los redirects
         controlsColor: colors.accent,
       });
-      
+
       if (!canOpen) {
         throw new Error('No se puede abrir la URL de checkout');
       }
@@ -172,27 +170,6 @@ export function PaymentSection({ shipmentId, price, shipmentStatus, onPaymentSta
     }
   };
 
-  const handleTransferToDriver = async () => {
-    if (!payment || !payment.driver_id) return;
-
-    try {
-      setTransferring(true);
-      await transferToDriver({
-        driver_id: payment.driver_id,
-        amount: payment.driver_amount,
-        payment_id: payment.id,
-        description: `Pago por envío ${shipmentId}`,
-      });
-      
-      Alert.alert('¡Éxito!', 'El pago ha sido transferido al conductor.');
-      await loadPayment();
-    } catch (error: any) {
-      const errorMessage = getErrorMessage(error);
-      Alert.alert('Error al transferir', errorMessage);
-    } finally {
-      setTransferring(false);
-    }
-  };
 
   // Si el envío no tiene precio, no mostrar nada
   if (!price || price <= 0) {
@@ -264,7 +241,7 @@ export function PaymentSection({ shipmentId, price, shipmentStatus, onPaymentSta
             </Text>
           </View>
         </View>
-        
+
         <View style={styles.detailsContainer}>
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Monto total:</Text>
@@ -303,42 +280,11 @@ export function PaymentSection({ shipmentId, price, shipmentStatus, onPaymentSta
         )}
 
         {payment.status === 'approved' && shipmentStatus === 'delivered' && (
-          <View style={styles.payoutContainer}>
-            <Text style={styles.payoutTitle}>Pago al conductor</Text>
-            {payment.driver_transfers && (
-              Array.isArray(payment.driver_transfers)
-                ? payment.driver_transfers.some(t => t.status === 'completed')
-                : payment.driver_transfers.status === 'completed'
-            ) ? (
-              <View style={styles.transferredBadge}>
-                <Ionicons name="checkmark-done-circle" size={20} color="#10B981" />
-                <Text style={styles.transferredText}>Pago transferido exitosamente</Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={[styles.button, transferring && styles.buttonDisabled]}
-                onPress={() => {
-                  Alert.alert(
-                    'Confirmar transferencia',
-                    `¿Estás seguro de que quieres transferir $${payment.driver_amount.toFixed(2)} al conductor?`,
-                    [
-                      { text: 'Cancelar', style: 'cancel' },
-                      { text: 'Sí, transferir', onPress: handleTransferToDriver }
-                    ]
-                  );
-                }}
-                disabled={transferring}
-              >
-                {transferring ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="send" size={20} color="#FFFFFF" style={styles.buttonIcon} />
-                    <Text style={styles.buttonText}>Transferir ${payment.driver_amount.toFixed(2)} al conductor</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            )}
+          <View style={styles.approvedInfo}>
+            <Ionicons name="checkmark-done-circle-outline" size={18} color="#10B981" />
+            <Text style={styles.approvedText}>
+              Envío confirmado. El pago ha sido acreditado al conductor para su retiro.
+            </Text>
           </View>
         )}
 
@@ -504,31 +450,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.muted,
     textAlign: 'center',
-  },
-  payoutContainer: {
-    marginTop: spacing.md,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    gap: spacing.sm,
-  },
-  payoutTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  transferredBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#D1FAE5',
-    padding: spacing.md,
-    borderRadius: radii.sm,
-    gap: spacing.sm,
-  },
-  transferredText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#065F46',
   },
 });
 

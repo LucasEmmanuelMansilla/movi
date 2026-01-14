@@ -1,12 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { colors, spacing } from '../../src/ui/theme';
+import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { colors, spacing, radii } from '../../src/ui/theme';
 import { useWalletLogic } from '../../src/hooks/shipments/useWalletLogic';
-import { 
-  WalletLoadingState, 
-  BalanceCard, 
-  TransferItem, 
-  WalletEmptyState 
+import {
+  WalletLoadingState,
+  BalanceCard,
+  TransferItem,
+  WalletEmptyState
 } from '../../src/components/profile/WalletComponents';
 
 /**
@@ -19,10 +19,37 @@ export default function WalletScreen() {
     transfers,
     loading,
     refreshing,
-    onRefresh
+    onRefresh,
+    withdraw
   } = useWalletLogic();
 
-  if (loading) {
+  const handleWithdraw = async () => {
+    if (!stats || stats.pendingAmount <= 0) {
+      Alert.alert('Saldo insuficiente', 'No tienes saldo disponible para retirar.');
+      return;
+    }
+
+    Alert.alert(
+      'Confirmar retiro',
+      `¿Deseas retirar $${stats.pendingAmount.toLocaleString()} a tu cuenta de Mercado Pago?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Retirar',
+          onPress: async () => {
+            try {
+              const result = await withdraw();
+              Alert.alert('Éxito', result.message || 'Retiro procesado correctamente.');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'No se pudo procesar el retiro.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  if (loading && !refreshing) {
     return <WalletLoadingState />;
   }
 
@@ -34,6 +61,20 @@ export default function WalletScreen() {
 
       <BalanceCard stats={stats} />
 
+      {stats && stats.pendingAmount > 0 && (
+        <TouchableOpacity
+          style={styles.withdrawButton}
+          onPress={handleWithdraw}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.withdrawButtonText}>Retirar Dinero</Text>
+          )}
+        </TouchableOpacity>
+      )}
+
       <View style={styles.historyContainer}>
         <Text style={styles.historyTitle}>Historial de Pagos</Text>
         <FlatList
@@ -41,10 +82,10 @@ export default function WalletScreen() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <TransferItem item={item} />}
           refreshControl={
-            <RefreshControl 
-              refreshing={refreshing} 
-              onRefresh={onRefresh} 
-              colors={[colors.primary]} 
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
             />
           }
           ListEmptyComponent={<WalletEmptyState />}
@@ -95,5 +136,18 @@ const styles = StyleSheet.create({
     color: colors.muted,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  withdrawButton: {
+    backgroundColor: colors.primary,
+    marginHorizontal: spacing.lg,
+    padding: spacing.md,
+    borderRadius: radii.md,
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+  },
+  withdrawButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
   }
 });

@@ -38,8 +38,8 @@ export function useShipmentDetailLogic(id: string | undefined) {
     }
   }, [id, showAlert]);
 
-  useEffect(() => { 
-    load(); 
+  useEffect(() => {
+    load();
   }, [load]);
 
   useFocusEffect(
@@ -49,10 +49,11 @@ export function useShipmentDetailLogic(id: string | undefined) {
   );
 
   const onChangeStatus = async (status: string) => {
+    console.log("🚀 ~ onChangeStatus ~ status:", status)
     if (!id) return;
     try {
       setSaving(status);
-      
+
       let location: LocationPayload | undefined;
       if (role === 'driver' && (status === 'picked_up' || status === 'delivered')) {
         try {
@@ -91,7 +92,7 @@ export function useShipmentDetailLogic(id: string | undefined) {
           return;
         }
       }
-      
+
       await updateShipmentStatus(id, status as any, undefined, location);
       await load();
       showAlert({

@@ -23,10 +23,10 @@ export const DetailHeader: React.FC<DetailHeaderProps> = ({ currentStatus }) => 
   <View style={styles.header}>
     <Text style={styles.title}>Detalle de envío</Text>
     <View style={styles.statusBadge}>
-      <Ionicons 
-        name={getStatusIcon(currentStatus)} 
-        size={20} 
-        color={getStatusColor(currentStatus)} 
+      <Ionicons
+        name={getStatusIcon(currentStatus)}
+        size={20}
+        color={getStatusColor(currentStatus)}
       />
       <Text style={[styles.statusText, { color: getStatusColor(currentStatus) }]}>
         {translateStatus(currentStatus)}
@@ -42,9 +42,9 @@ interface ChatButtonProps {
 
 export const ChatButton: React.FC<ChatButtonProps> = ({ shipmentId }) => {
   const router = useRouter();
-  
+
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.chatButton}
       onPress={() => router.push(`/chat/${shipmentId}`)}
       activeOpacity={0.8}
@@ -75,10 +75,10 @@ export const ShipmentTimeline: React.FC<TimelineProps> = ({ items }) => (
           <View key={item.id} style={styles.timelineItem}>
             <View style={styles.timelineLeft}>
               <View style={[styles.timelineDot, { backgroundColor: getStatusColor(item.status) }]}>
-                <Ionicons 
-                  name={getStatusIcon(item.status)} 
-                  size={16} 
-                  color="white" 
+                <Ionicons
+                  name={getStatusIcon(item.status)}
+                  size={16}
+                  color="white"
                 />
               </View>
               {index < items.length - 1 && <View style={styles.timelineLine} />}
@@ -114,34 +114,49 @@ interface DetailActionsProps {
   nextStates: string[];
   saving: string | null;
   onChange: (status: string) => void;
+  role: string;
 }
 
-export const DetailActions: React.FC<DetailActionsProps> = ({ nextStates, saving, onChange }) => (
+export const DetailActions: React.FC<DetailActionsProps> = ({ nextStates, saving, onChange, role }) => (
   <View style={styles.actionsContainer}>
     <Text style={styles.actionsTitle}>Acciones disponibles</Text>
     <View style={styles.actions}>
-      {nextStates.map((s) => (
-        <TouchableOpacity
-          key={s}
-          style={[
-            styles.actionBtn,
-            saving === s && styles.actionBtnDisabled
-          ]}
-          onPress={() => onChange(s)}
-          disabled={saving === s}
-          activeOpacity={0.7}
-        >
-          <Ionicons 
-            name={getStatusIcon(s)} 
-            size={20} 
-            color="white" 
-            style={styles.actionIcon}
-          />
-          <Text style={styles.actionText}>
-            {saving === s ? 'Actualizando...' : `Marcar como ${translateStatus(s)}`}
-          </Text>
-        </TouchableOpacity>
-      ))}
+      {nextStates.map((s) => {
+        const isDelivered = s === 'delivered';
+        const isReadyForDelivery = s === 'ready_for_delivery';
+
+        let label = `Marcar como ${translateStatus(s)}`;
+
+        if (isDelivered && role === 'business') {
+          label = 'Confirmar Entrega';
+        } else if (isReadyForDelivery && role === 'driver') {
+          label = 'Marcar como Entregado';
+        }
+
+        return (
+          <TouchableOpacity
+            key={s}
+            style={[
+              styles.actionBtn,
+              saving === s && styles.actionBtnDisabled,
+              isDelivered && { backgroundColor: colors.success }
+            ]}
+            onPress={() => onChange(s)}
+            disabled={saving === s}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={getStatusIcon(s)}
+              size={20}
+              color="white"
+              style={styles.actionIcon}
+            />
+            <Text style={styles.actionText}>
+              {saving === s ? 'Actualizando...' : label}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   </View>
 );
@@ -340,7 +355,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    borderRadius: radii.full,
+    borderRadius: 99,
     gap: spacing.xs,
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 2 },

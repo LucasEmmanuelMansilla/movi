@@ -9,7 +9,7 @@ export type Shipment = {
   dropoff_address: string;
   price: number | null;
   weight: number;
-  current_status: 'draft' | 'created' | 'assigned' | 'picked_up' | 'in_transit' | 'delivered' | 'cancelled';
+  current_status: 'draft' | 'created' | 'assigned' | 'picked_up' | 'in_transit' | 'ready_for_delivery' | 'delivered' | 'cancelled';
   created_at: string;
   created_by: string;
   driver_assignments?: {
@@ -40,14 +40,14 @@ export async function acceptShipment(id: string) {
 }
 
 export async function updateShipmentStatus(
-  id: string, 
-  status: 'picked_up' | 'in_transit' | 'delivered' | 'cancelled', 
+  id: string,
+  status: 'picked_up' | 'in_transit' | 'ready_for_delivery' | 'delivered' | 'cancelled',
   note?: string,
   location?: import('../../hooks/useLocationPicker').LocationPayload
 ) {
-  return api(`/shipments/${id}/status`, { 
-    method: 'POST', 
-    body: JSON.stringify({ status, note, location }) 
+  return api(`/shipments/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status, note, location })
   });
 }
 

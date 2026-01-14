@@ -6,6 +6,7 @@ export const SHIPMENT_STATUS_MAP: Record<string, string> = {
   assigned: 'Asignado',
   picked_up: 'Recogido',
   in_transit: 'En tránsito',
+  ready_for_delivery: 'Esperando confirmación',
   delivered: 'Entregado',
   cancelled: 'Cancelado',
 };
@@ -26,6 +27,7 @@ export const getStatusIcon = (status: string): keyof typeof Ionicons.glyphMap =>
     assigned: 'person-add-outline',
     picked_up: 'checkmark-circle-outline',
     in_transit: 'car-outline',
+    ready_for_delivery: 'time-outline',
     delivered: 'checkmark-done-circle-outline',
     cancelled: 'close-circle-outline',
   };
@@ -38,6 +40,7 @@ export const getStatusColor = (status: string) => {
     assigned: '#92400E',
     picked_up: '#065F46',
     in_transit: '#3730A3',
+    ready_for_delivery: '#D97706',
     delivered: '#065F46',
     cancelled: '#991B1B',
   };
@@ -47,7 +50,8 @@ export const getStatusColor = (status: string) => {
 export const NEXT_STATES: Record<string, string[]> = {
   assigned: ['picked_up', 'cancelled'],
   picked_up: ['in_transit', 'cancelled'],
-  in_transit: ['delivered', 'cancelled'],
+  in_transit: ['ready_for_delivery', 'cancelled'],
+  ready_for_delivery: ['delivered', 'cancelled'],
   created: ['cancelled'],
   delivered: [],
   cancelled: [],

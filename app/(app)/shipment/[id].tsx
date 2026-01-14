@@ -3,10 +3,10 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { PaymentSection } from '../../../src/components/payments/PaymentSection';
 import { ShipmentTrackingMap } from '../../../src/components/shipments/ShipmentTrackingMap';
-import { 
-  ShipmentDetailLoading, 
-  DetailHeader, 
-  ShipmentTimeline, 
+import {
+  ShipmentDetailLoading,
+  DetailHeader,
+  ShipmentTimeline,
   DetailActions,
   ChatButton
 } from '../../../src/components/shipments/ShipmentDetailComponents';
@@ -22,9 +22,9 @@ import { colors, spacing } from '../../../src/ui/theme';
 export default function ShipmentDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const {
-    items,
-    shipment,
     loading,
+    shipment,
+    items,
     current,
     saving,
     role,
@@ -36,10 +36,19 @@ export default function ShipmentDetail() {
     return <ShipmentDetailLoading />;
   }
 
-  const next = NEXT_STATES[current] || [];
+  // Filtrar estados siguientes según el rol
+  let next = NEXT_STATES[current] || [];
+
+  if (role === 'driver') {
+    // Conductores NO pueden marcar como entregado
+    next = next.filter(s => s !== 'delivered');
+  } else if (role === 'business') {
+    // Negocios SOLO pueden confirmar entrega (cuando está listo) o cancelar
+    next = next.filter(s => s === 'delivered' || s === 'cancelled');
+  }
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
@@ -72,10 +81,11 @@ export default function ShipmentDetail() {
 
       {/* Acciones de Cambio de Estado */}
       {next.length > 0 && (
-        <DetailActions 
-          nextStates={next} 
-          saving={saving} 
-          onChange={onChangeStatus} 
+        <DetailActions
+          nextStates={next}
+          saving={saving}
+          onChange={onChangeStatus}
+          role={role || 'driver'}
         />
       )}
     </ScrollView>

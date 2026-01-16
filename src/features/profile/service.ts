@@ -1,5 +1,4 @@
 import { api } from '../../lib/api';
-import { supabase } from '../../lib/supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 
 export type Profile = {
@@ -65,9 +64,8 @@ export async function updateMyProfile(data: UpdateProfileData) {
 
 export async function signOutAll() {
   try {
-    await supabase.auth.signOut();
+    await useAuthStore.getState().signOut();
   } catch {}
-  useAuthStore.getState().setRole(null);
 }
 
 /**

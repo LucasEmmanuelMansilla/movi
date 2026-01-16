@@ -5,13 +5,13 @@ import { useAuthStore } from '../../src/store/useAuthStore';
 import { usePushNotifications } from '../../src/features/push/usePushNotifications';
 
 export default function AppLayout() {
-  const { user, role, isLoading } = useAuthStore();
+  const { user, role, status } = useAuthStore();
   
   // Registrar push notifications cuando el usuario está autenticado
   usePushNotifications();
 
   // Si no hay usuario y no está cargando, redirigir al login
-  if (!isLoading && !user) {
+  if (status !== 'idle' && status !== 'loading' && !user) {
     return <Redirect href="/(auth)/login" />;
   }
   

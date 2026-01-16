@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { signInWithEmail } from '../../features/auth/service';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -13,7 +13,7 @@ export function useLoginLogic() {
   const alertRef = useRef<any>(null);
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { session, role, user, loadSession } = useAuthStore();
+  const { session, role, user, bootstrap } = useAuthStore();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -60,7 +60,7 @@ export function useLoginLogic() {
     try {
       setLoading(true);
       await signInWithEmail(email.trim(), password);
-      await loadSession();
+      await bootstrap();
       
       const currentRole = useAuthStore.getState().role;
       if (currentRole === 'driver') {

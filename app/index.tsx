@@ -1,19 +1,12 @@
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '../src/store/useAuthStore';
-import { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 
 export default function Home() {
-  const { user, role, isLoading, loadSession } = useAuthStore();
-
-  // Cargar la sesión al montar el componente (SOLO UNA VEZ)
-  useEffect(() => {
-    loadSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Array vacío para ejecutar SOLO una vez al montar
+  const { user, role, status } = useAuthStore();
 
   // Mostrar un indicador de carga mientras se verifica la sesión
-  if (isLoading) {
+  if (status === 'idle' || status === 'loading') {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color="#09c577" />

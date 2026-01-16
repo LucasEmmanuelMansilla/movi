@@ -12,7 +12,7 @@ export default function AuthCallback() {
   const [showWelcome, setShowWelcome] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { setSession, setRole, loadSession } = useAuthStore();
+  const { applySession, setRole } = useAuthStore();
 
   useEffect(() => {
     handleAuthCallback();
@@ -77,9 +77,8 @@ export default function AuthCallback() {
             console.log(`✅ Callback - Exchange completado. Rol recibido del servidor: ${res.role}`);
 
             // Guardar la sesión y el rol
-            await setSession(sessionData.session);
+            await applySession(sessionData.session);
             setRole(res.role);
-            await loadSession();
 
             // Mostrar el modal de bienvenida
             setShowWelcome(true);
@@ -87,9 +86,8 @@ export default function AuthCallback() {
           } catch (exchangeError: any) {
             console.error('Error en exchange:', exchangeError);
             // Aún así, guardar la sesión si el exchange falla
-            await setSession(sessionData.session);
+            await applySession(sessionData.session);
             setRole(role);
-            await loadSession();
             setShowWelcome(true);
             setIsLoading(false);
           }
@@ -100,8 +98,7 @@ export default function AuthCallback() {
         // Si no hay tokens en la URL, verificar si hay una sesión activa
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          await setSession(session);
-          await loadSession();
+          await applySession(session);
         }
         setShowWelcome(true);
         setIsLoading(false);

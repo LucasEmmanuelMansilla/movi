@@ -8,6 +8,7 @@ import { useEffect } from 'react';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 import CustomAlert from '../src/components/ui/CustomAlert';
 import { useAlertStore } from '../src/store/useAlertStore';
+import { useAuthStore } from '../src/store/useAuthStore';
 import linking from './linking';
 
 // Mantener el splash screen visible mientras cargamos recursos
@@ -15,10 +16,18 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const { visible, config, hideAlert } = useAlertStore();
+  const startAuthListener = useAuthStore((s) => s.startAuthListener);
+  const bootstrap = useAuthStore((s) => s.bootstrap);
 
   useEffect(() => {
     SplashScreen.hideAsync();
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = startAuthListener();
+    bootstrap();
+    return unsubscribe;
+  }, [startAuthListener, bootstrap]);
 
   return (
     <ErrorBoundary>

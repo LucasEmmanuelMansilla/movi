@@ -63,22 +63,11 @@ export async function signInWithEmail(email: string, password: string) {
     });
     
     if (error) throw error;
-
-    // Get the user's role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', data.user.id)
-      .single();
-
-    // Update the auth store
-    useAuthStore.getState().setUser({
-      id: data.user.id,
-      email: data.user.email!,
-      role: profile?.role as 'driver' | 'business' || 'business',
-      fullName: profile?.full_name || undefined,
-      phone: profile?.phone || undefined
-    });
+    if (data.session) {
+      await useAuthStore.getState().applySession(data.session);
+    } else {
+      await useAuthStore.getState().bootstrap();
+    }
 
     return { success: true, user: data.user };
 
@@ -89,9 +78,7 @@ export async function signInWithEmail(email: string, password: string) {
 }
 
 export async function signOut() {
-  const { error } = await supabase.auth.signOut();
-  if (error) throw error;
-  useAuthStore.getState().clearUser();
+  await useAuthStore.getState().signOut();
 }
 
 export async function resendConfirmationEmail(email: string) {
@@ -130,13 +117,6 @@ export async function updateProfile(updates: {
 
   // Update local state
   if (updates.full_name || updates.phone) {
-    const currentUser = useAuthStore.getState().user;
-    if (currentUser) {
-      useAuthStore.getState().setUser({
-        ...currentUser,
-        fullName: updates.full_name || currentUser.fullName,
-        phone: updates.phone || currentUser.phone
-      });
-    }
+    await useAuthStore.getState().refreshProfile(user.id);
   }
 }

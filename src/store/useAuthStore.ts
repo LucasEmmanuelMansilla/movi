@@ -1,386 +1,473 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { supabase } from '../lib/supabase';
-import { Session } from '@supabase/supabase-js';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
-type Role = 'driver' | 'business' | null;
+export type Role = 'driver' | 'business' | null;
 
-interface StoredSession {
-  accessToken: string;
-  refreshToken: string;
-  expiresAt: number;
-  user: {
-    id: string;
-    email?: string;
-  };
+type AuthStatus =
+  | 'idle'
+  | 'loading'
+  | 'authenticated'
+  | 'unauthenticated'
+  | 'error_checked';
+
+type AuthErrorType = 'network' | 'supabase' | 'storage' | 'unknown';
+
+export interface AuthError {
+  type: AuthErrorType;
+  message: string;
 }
 
-interface User {
-  id: string;
-  email: string;
-  role: 'driver' | 'business';
+export interface AuthProfile {
+  role: Exclude<Role, null>;
   fullName?: string;
   phone?: string;
 }
 
-interface AuthState {
-  user: any | null;
+interface StoredSessionV1 {
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number; // ms epoch
+  userId: string;
+}
+
+export interface AuthState {
+  // Canonical state
+  user: SupabaseUser | null;
   session: Session | null;
   role: Role;
-  isLoading: boolean;
-  sessionChecked: boolean; // Indica si ya se verificó que no hay sesión disponible
+  profile: AuthProfile | null;
+  status: AuthStatus;
+  lastError: AuthError | null;
 
-  // Actions
+  // Back-compat (otros módulos lo usan aún)
+  isLoading: boolean;
+
+  // Actions (nuevas)
+  bootstrap: () => Promise<void>;
+  applySession: (session: Session | null) => Promise<void>;
+  refreshProfile: (userId: string) => Promise<void>;
+  startAuthListener: () => () => void;
+  signOut: () => Promise<void>;
+
+  // Actions (compat)
   setRole: (role: Role) => void;
   setSession: (session: Session | null) => Promise<void>;
   loadSession: () => Promise<void>;
-  signOut: () => Promise<void>;
   initializeAuth: () => () => void;
-  setUser: (user: User | null) => void;
+  resetSessionCheck: () => void;
+  setUser: (user: any | null) => void;
   clearUser: () => void;
   checkAuth: () => Promise<void>;
-  resetSessionCheck: () => void; // Resetear el flag cuando se inicia sesión
 }
 
 const SECURE_KEY = 'movi_auth_session';
+const SESSION_SKEW_MS = 30_000;
+const AUTH_TIMEOUT_MS = 10_000;
 
-const storeSession = async (session: Session | null): Promise<void> => {
-  if (!session) {
-    await SecureStore.deleteItemAsync(SECURE_KEY);
-    return;
+function isRole(value: unknown): value is Exclude<Role, null> {
+  return value === 'driver' || value === 'business';
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message = 'Timeout'): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), ms);
+  });
+
+  return Promise.race([promise, timeoutPromise]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+}
+
+function getSessionExpiryMs(session: Session): number {
+  // `expires_at` suele venir en segundos epoch
+  if (typeof (session as any).expires_at === 'number') {
+    return (session as any).expires_at * 1000;
   }
+  return Date.now() + (session.expires_in || 3600) * 1000;
+}
 
-  const storedSession: StoredSession = {
+async function secureClear(): Promise<void> {
+  try {
+    await SecureStore.deleteItemAsync(SECURE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+async function secureSaveSession(session: Session): Promise<void> {
+  const stored: StoredSessionV1 = {
     accessToken: session.access_token,
     refreshToken: session.refresh_token || '',
-    expiresAt: Date.now() + (session.expires_in || 3600) * 1000,
-    user: {
-      id: session.user.id,
-      email: session.user.email || undefined,
-    },
+    expiresAt: getSessionExpiryMs(session),
+    userId: session.user.id,
   };
 
-  await SecureStore.setItemAsync(SECURE_KEY, JSON.stringify(storedSession));
-};
+  await SecureStore.setItemAsync(SECURE_KEY, JSON.stringify(stored));
+}
 
-const getStoredSession = async (): Promise<StoredSession | null> => {
-  const sessionString = await SecureStore.getItemAsync(SECURE_KEY);
-  if (!sessionString) return null;
-
+async function secureLoadSession(): Promise<StoredSessionV1 | null> {
+  let raw: string | null = null;
   try {
-    return JSON.parse(sessionString);
-  } catch (error) {
-    console.log('Error parsing stored session:', error);
+    raw = await SecureStore.getItemAsync(SECURE_KEY);
+  } catch {
     return null;
   }
-};
+  if (!raw) return null;
 
-// Protección contra múltiples llamadas - una sola vez
-let loadingSession = false;
-let sessionLoadAttempted = false; // Flag para rastrear si ya se intentó cargar
+  try {
+    const parsed = JSON.parse(raw) as Partial<StoredSessionV1>;
+    if (
+      !parsed ||
+      typeof parsed.accessToken !== 'string' ||
+      typeof parsed.refreshToken !== 'string' ||
+      typeof parsed.expiresAt !== 'number' ||
+      typeof parsed.userId !== 'string'
+    ) {
+      await secureClear();
+      return null;
+    }
+    return parsed as StoredSessionV1;
+  } catch {
+    await secureClear();
+    return null;
+  }
+}
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set, get) => ({
-      user: null,
-      session: null,
-      role: null,
-      isLoading: true,
-      sessionChecked: false, // Inicialmente no se ha verificado
-      
-      setUser: (user) => set({ user, isLoading: false }),
-      clearUser: () => set({ user: null, isLoading: false }),
+async function fetchProfileRole(userId: string): Promise<AuthProfile | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('role, full_name, phone')
+    .eq('id', userId)
+    .single();
 
-      setRole: (role) => set({ role }),
+  if (error || !data) return null;
+  if (!isRole(data.role)) return null;
 
-      setSession: async (session) => {
-        if (session) {
-          await storeSession(session);
-          // Si hay sesión, resetear los flags de verificación
-          sessionLoadAttempted = false; // Permitir nueva carga después de login
-          set({ user: session.user, session, isLoading: false, sessionChecked: false });
-        } else {
-          await storeSession(null);
-          set({ user: null, session: null, isLoading: false, role: null, sessionChecked: true });
-        }
-      },
+  return {
+    role: data.role,
+    fullName: data.full_name ?? undefined,
+    phone: data.phone ?? undefined,
+  };
+}
 
-      resetSessionCheck: () => {
-        sessionLoadAttempted = false; // Resetear flag de intento
-        set({ sessionChecked: false });
-      },
+function profileFromMetadata(user: SupabaseUser): AuthProfile | null {
+  const role = (user.user_metadata as any)?.role;
+  if (!isRole(role)) return null;
 
-      loadSession: async () => {
-        const state = get();
-        
-        // Si ya se verificó que no hay sesión (ni en Supabase ni local), NO intentar de nuevo
-        if (state.sessionChecked && !state.session) {
-          console.log('ℹ️ Sesión ya verificada: no hay sesión disponible, evitando peticiones');
-          set({ isLoading: false });
-          return;
-        }
+  const fullName = (user.user_metadata as any)?.full_name;
+  const phone = (user.user_metadata as any)?.phone;
 
-        // Si ya se intentó cargar la sesión, NO volver a intentar
-        if (sessionLoadAttempted && !state.session) {
-          console.log('ℹ️ Sesión ya intentó cargarse anteriormente, evitando peticiones repetidas');
-          set({ isLoading: false });
-          return;
-        }
-        
-        // Prevenir múltiples llamadas simultáneas
-        if (loadingSession) {
-          console.log('⚠️ loadSession ya está en progreso, ignorando llamada duplicada');
-          return;
-        }
+  return {
+    role,
+    fullName: typeof fullName === 'string' ? fullName : undefined,
+    phone: typeof phone === 'string' ? phone : undefined,
+  };
+}
 
-        // Marcar como intentado ANTES de hacer la petición
-        sessionLoadAttempted = true;
-        loadingSession = true;
+export const useAuthStore = create<AuthState>()((set, get) => {
+  // Estado interno: evita globals a nivel módulo y permite dedup/cancelación lógica
+  let activeOpId = 0;
+  let bootstrapPromise: Promise<void> | null = null;
+  let activeAuthUnsub: (() => void) | null = null;
 
-        try {
-          set({ isLoading: true });
+  const setStatus = (status: AuthStatus, lastError: AuthError | null = null) => {
+    set({
+      status,
+      lastError,
+      isLoading: status === 'idle' || status === 'loading',
+    });
+  };
 
-          // PRIMERO: Verificar sesión almacenada localmente (SIN petición de red)
-          const stored = await getStoredSession();
-          
-          if (stored && Date.now() < stored.expiresAt) {
-            // Hay sesión almacenada válida - intentar restaurarla UNA VEZ
-            try {
-              const { data: { session: restoredSession }, error: restoreError } = await supabase.auth.setSession({
-                access_token: stored.accessToken,
-                refresh_token: stored.refreshToken,
-              });
+  const applySessionInternal = async (session: Session | null, opId: number) => {
+    if (session === null) {
+      await secureClear();
+      if (opId !== activeOpId) return;
+      set({
+        user: null,
+        session: null,
+        role: null,
+        profile: null,
+        lastError: null,
+      });
+      setStatus('unauthenticated', null);
+      return;
+    }
 
-              if (restoredSession && !restoreError) {
-                await storeSession(restoredSession);
-                
-                // Obtener el rol del perfil
-                try {
-                  const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('role')
-                    .eq('id', restoredSession.user.id)
-                    .single();
-                  
-                  const userRole = profile?.role as Role || null;
-                  set({
-                    user: restoredSession.user,
-                    session: restoredSession,
-                    role: userRole,
-                    isLoading: false,
-                    sessionChecked: false
-                  });
-                } catch (profileError) {
-                  console.warn('⚠️ Error al obtener perfil, continuando sin rol:', profileError);
-                  set({
-                    user: restoredSession.user,
-                    session: restoredSession,
-                    isLoading: false,
-                    sessionChecked: false
-                  });
-                }
-                
-                loadingSession = false;
-                return;
-              }
-            } catch (setSessionError) {
-              console.warn('⚠️ Error al restaurar sesión almacenada:', setSessionError);
-              // Continuar para verificar en Supabase
-            }
-          }
+    try {
+      await secureSaveSession(session);
+    } catch (e: any) {
+      if (opId !== activeOpId) return;
+      setStatus('error_checked', { type: 'storage', message: e?.message || 'Error guardando sesión' });
+      return;
+    }
 
-          // SEGUNDO: Intentar obtener sesión de Supabase UNA SOLA VEZ con timeout
-          const sessionPromise = supabase.auth.getSession();
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Network timeout')), 10000)
-          );
+    const user = session.user;
+    let profile = profileFromMetadata(user);
+    if (!profile) {
+      try {
+        profile = await fetchProfileRole(user.id);
+      } catch {
+        // ignore: dejamos role null si falla el fetch
+      }
+    }
 
-          let sessionData;
-          try {
-            sessionData = await Promise.race([sessionPromise, timeoutPromise]) as any;
-          } catch (networkError: any) {
-            // Error de red - NO reintentar, marcar como verificado
-            console.warn('⚠️ Error de red al obtener sesión de Supabase:', networkError.message);
-            
-            // Si no hay sesión almacenada válida, marcar como sin sesión
-            await storeSession(null);
-            set({ user: null, session: null, isLoading: false, role: null, sessionChecked: true });
-            console.log('ℹ️ Error de red y no hay sesión almacenada, marcando como verificado');
-            loadingSession = false;
-            return;
-          }
+    if (opId !== activeOpId) return;
 
-          const { data: { session }, error } = sessionData || { data: { session: null }, error: null };
+    set({
+      user,
+      session,
+      profile,
+      role: profile?.role ?? null,
+      lastError: null,
+    });
+    setStatus('authenticated', null);
+  };
 
-          if (error) {
-            // Error al obtener sesión - NO reintentar
-            console.warn('⚠️ Error al obtener sesión:', error.message);
-            
-            // Si no hay sesión almacenada válida, marcar como sin sesión
-            await storeSession(null);
-            set({ user: null, session: null, isLoading: false, role: null, sessionChecked: true });
-            console.log('ℹ️ Error y no hay sesión válida, marcando como verificado');
-            loadingSession = false;
-            return;
-          }
+  const bootstrapInternal = async (opId: number) => {
+    // Terminal states: no reintentar automáticamente
+    const { status } = get();
+    if (status === 'authenticated' || status === 'unauthenticated' || status === 'error_checked') {
+      return;
+    }
 
-          if (session) {
-            // Hay sesión válida de Supabase - cargar el rol del perfil
-            await storeSession(session);
-            
-            // Obtener el rol del perfil
-            try {
-              const { data: profile } = await supabase
-                .from('profiles')
-                .select('role')
-                .eq('id', session.user.id)
-                .single();
-              
-              const userRole = profile?.role as Role || null;
-              set({ 
-                user: session.user, 
-                session, 
-                role: userRole,
-                isLoading: false, 
-                sessionChecked: false 
-              });
-            } catch (profileError) {
-              console.warn('⚠️ Error al obtener perfil, continuando sin rol:', profileError);
-              set({ 
-                user: session.user, 
-                session, 
-                isLoading: false, 
-                sessionChecked: false 
-              });
-            }
-            
-            loadingSession = false;
-            return;
-          }
+    setStatus('loading', null);
 
-          // Si llegamos aquí, NO hay sesión ni en Supabase ni local
-          // Marcar como verificado para NUNCA intentar de nuevo
-          await storeSession(null);
-          set({ user: null, session: null, isLoading: false, role: null, sessionChecked: true });
-          console.log('ℹ️ No hay sesión disponible (ni Supabase ni local), marcando como verificado - NO se volverá a intentar');
+    // 1) Intentar restaurar desde SecureStore (sin red)
+    const stored = await secureLoadSession();
+    const now = Date.now();
+    const storedValid = stored && now + SESSION_SKEW_MS < stored.expiresAt;
 
-        } catch (error: any) {
-          console.error('❌ Error loading session:', error?.message || error);
-          
-          // CUALQUIER error - marcar como verificado y NO reintentar
-          await storeSession(null);
-          set({ user: null, session: null, isLoading: false, role: null, sessionChecked: true });
-          console.log('ℹ️ Error en loadSession, marcando como verificado - NO se volverá a intentar');
-        } finally {
-          loadingSession = false;
-        }
-      },
-
-      checkAuth: async () => {
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-
-          if (session?.user) {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single();
-
-            if (profile) {
-              set({
-                user: {
-                  id: session.user.id,
-                  email: session.user.email!,
-                  role: profile.role,
-                  fullName: profile.full_name,
-                  phone: profile.phone
-                },
-                session: session,
-                role: profile.role as Role,
-                isLoading: false
-              });
-              return;
-            }
-          }
-        } catch (error) {
-          console.error('Error checking auth:', error);
-        }
-        set({ user: null, session: null, role: null, isLoading: false });
-      },
-
-      signOut: async () => {
-        try {
-          await supabase.auth.signOut();
-        } catch (error) {
-          console.error('Error signing out:', error);
-        }
-        await storeSession(null);
-        // Al cerrar sesión, resetear flags y marcar como verificado
-        sessionLoadAttempted = false;
-        set({ user: null, session: null, isLoading: false, role: null, sessionChecked: true });
-      },
-
-      initializeAuth: () => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-          async (event, session) => {
-            if (event === 'SIGNED_IN') {
-              // Solo en SIGNED_IN (no en TOKEN_REFRESHED para evitar peticiones repetidas)
-              if (session) {
-                await storeSession(session);
-                // Resetear flags al iniciar sesión
-                sessionLoadAttempted = false;
-                
-                // Obtener el rol del perfil
-                try {
-                  const { data: profile } = await supabase
-                    .from('profiles')
-                    .select('role')
-                    .eq('id', session.user.id)
-                    .single();
-                  
-                  const userRole = profile?.role as Role || null;
-                  set({ 
-                    user: session.user, 
-                    session, 
-                    role: userRole,
-                    isLoading: false, 
-                    sessionChecked: false 
-                  });
-                } catch (profileError) {
-                  console.warn('⚠️ Error al obtener perfil, continuando sin rol:', profileError);
-                  set({ 
-                    user: session.user, 
-                    session, 
-                    isLoading: false, 
-                    sessionChecked: false 
-                  });
-                }
-              }
-            } else if (event === 'SIGNED_OUT') {
-              await storeSession(null);
-              // Resetear flags al cerrar sesión
-              sessionLoadAttempted = false;
-              set({ user: null, session: null, isLoading: false, role: null, sessionChecked: true });
-            }
-            // NO manejar TOKEN_REFRESHED para evitar peticiones automáticas repetidas
-          }
+    if (storedValid) {
+      try {
+        const restore = await withTimeout(
+          supabase.auth.setSession({
+            access_token: stored!.accessToken,
+            refresh_token: stored!.refreshToken,
+          }),
+          AUTH_TIMEOUT_MS,
+          'Auth restore timeout'
         );
 
-        return () => {
-          subscription?.unsubscribe();
-        };
-      },
-    }),
-    {
-      name: 'movi-auth',
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({
-        role: state.role,
-        sessionChecked: state.sessionChecked, // Persistir el flag de verificación
-      }),
+        const restoredSession = restore?.data?.session ?? null;
+        const restoreError = (restore as any)?.error;
+        if (restoredSession && !restoreError) {
+          await applySessionInternal(restoredSession, opId);
+          return;
+        }
+      } catch {
+        // No reintentar; seguir a getSession solo si aún no hay estado terminal
+      }
     }
-  )
-);
+
+    // 2) Leer sesión desde Supabase (una sola vez)
+    try {
+      const res = await withTimeout(supabase.auth.getSession(), AUTH_TIMEOUT_MS, 'Auth getSession timeout');
+      const session = res?.data?.session ?? null;
+      const error = (res as any)?.error;
+
+      if (error) {
+        if (opId !== activeOpId) return;
+        setStatus('error_checked', { type: 'supabase', message: error.message || 'Error obteniendo sesión' });
+        return;
+      }
+
+      if (!session) {
+        if (opId !== activeOpId) return;
+        // No hay sesión: limpiar SecureStore por seguridad
+        await secureClear();
+        if (opId !== activeOpId) return;
+        set({ user: null, session: null, role: null, profile: null, lastError: null });
+        setStatus('unauthenticated', null);
+        return;
+      }
+
+      await applySessionInternal(session, opId);
+    } catch (e: any) {
+      if (opId !== activeOpId) return;
+      setStatus('error_checked', {
+        type: e?.name === 'AbortError' || /network/i.test(e?.message) ? 'network' : 'unknown',
+        message: e?.message || 'Error cargando sesión',
+      });
+    }
+  };
+
+  return {
+    user: null,
+    session: null,
+    role: null,
+    profile: null,
+    status: 'idle',
+    lastError: null,
+    isLoading: true,
+
+    bootstrap: async () => {
+      const { status } = get();
+      if (status === 'authenticated' || status === 'unauthenticated' || status === 'error_checked') return;
+
+      if (bootstrapPromise) return bootstrapPromise;
+
+      activeOpId += 1;
+      const opId = activeOpId;
+      bootstrapPromise = bootstrapInternal(opId).finally(() => {
+        if (bootstrapPromise) bootstrapPromise = null;
+      });
+
+      return bootstrapPromise;
+    },
+
+    applySession: async (session) => {
+      activeOpId += 1;
+      const opId = activeOpId;
+      setStatus(session ? 'loading' : 'unauthenticated', null);
+      await applySessionInternal(session, opId);
+    },
+
+    refreshProfile: async (userId: string) => {
+      activeOpId += 1;
+      const opId = activeOpId;
+
+      const current = get();
+      if (!current.session || !current.user || current.user.id !== userId) return;
+
+      // Metadata-first, luego profiles
+      let profile = profileFromMetadata(current.user);
+      if (!profile) {
+        try {
+          profile = await fetchProfileRole(userId);
+        } catch {
+          profile = null;
+        }
+      }
+
+      if (opId !== activeOpId) return;
+      set({
+        profile,
+        role: profile?.role ?? null,
+      });
+    },
+
+    startAuthListener: () => {
+      // Garantizar una sola suscripción activa
+      if (activeAuthUnsub) {
+        try {
+          activeAuthUnsub();
+        } catch {
+          // ignore
+        }
+        activeAuthUnsub = null;
+      }
+
+      const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+        if (event === 'SIGNED_OUT') {
+          // Solo invalidar si vamos a mutar estado
+          activeOpId += 1;
+          const opId = activeOpId;
+          await applySessionInternal(null, opId);
+          return;
+        }
+
+        // Eventos sin sesión (p.ej. INITIAL_SESSION null) NO deben invalidar bootstrap
+        if (!session) return;
+
+        // Solo invalidar si vamos a mutar estado
+        activeOpId += 1;
+        const opId = activeOpId;
+
+        if (event === 'TOKEN_REFRESHED') {
+          // Guardar tokens nuevos, pero evitar re-fetch de profile innecesario
+          try {
+            await secureSaveSession(session);
+          } catch {
+            // ignore
+          }
+
+          if (opId !== activeOpId) return;
+          set({
+            session,
+            user: session.user,
+            lastError: null,
+          });
+          setStatus('authenticated', null);
+          return;
+        }
+
+        // SIGNED_IN / INITIAL_SESSION con sesión / otros
+        await applySessionInternal(session, opId);
+      });
+
+      const unsub = () => {
+        try {
+          data?.subscription?.unsubscribe();
+        } catch {
+          // ignore
+        }
+      };
+
+      activeAuthUnsub = unsub;
+      return unsub;
+    },
+
+    signOut: async () => {
+      activeOpId += 1;
+      const opId = activeOpId;
+      try {
+        await supabase.auth.signOut();
+      } catch {
+        // ignore
+      }
+      await applySessionInternal(null, opId);
+    },
+
+    // Compat
+    setRole: (role) => {
+      const current = get();
+      if (role && isRole(role)) {
+        const profile: AuthProfile = { role };
+        set({ role, profile: current.profile ? { ...current.profile, role } : profile });
+      } else {
+        set({ role: null, profile: null });
+      }
+    },
+
+    setSession: async (session) => get().applySession(session),
+    loadSession: async () => get().bootstrap(),
+    initializeAuth: () => get().startAuthListener(),
+    resetSessionCheck: () => {
+      // Permite un nuevo bootstrap explícito (p.ej. después de login)
+      set({ status: 'idle', lastError: null, isLoading: true });
+    },
+
+    // Legacy: preferir `applySession/bootstrap`
+    setUser: (user: any | null) => {
+      // Soporte para módulos antiguos: mapeamos a role/profile si existe
+      if (!user) {
+        set({ user: null, session: null, role: null, profile: null, lastError: null });
+        setStatus('unauthenticated', null);
+        return;
+      }
+
+      const role = isRole(user.role) ? (user.role as Exclude<Role, null>) : null;
+      set({
+        // No podemos fabricar un SupabaseUser real aquí: dejamos `user` nulo para evitar estado inconsistente.
+        user: null,
+        session: null,
+        role,
+        profile: role
+          ? { role, fullName: typeof user.fullName === 'string' ? user.fullName : undefined, phone: typeof user.phone === 'string' ? user.phone : undefined }
+          : null,
+        lastError: null,
+      });
+      setStatus(role ? 'authenticated' : 'unauthenticated', null);
+    },
+
+    clearUser: () => {
+      set({ user: null, session: null, role: null, profile: null, lastError: null });
+      setStatus('unauthenticated', null);
+    },
+
+    checkAuth: async () => get().bootstrap(),
+  };
+});

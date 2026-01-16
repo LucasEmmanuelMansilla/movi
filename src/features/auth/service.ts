@@ -170,7 +170,7 @@ export async function signInWithEmail(email: string, password: string) {
 
     // Establecer la sesión y el rol
     if (data.session) {
-      await useAuthStore.getState().setSession(data.session);
+      await useAuthStore.getState().applySession(data.session);
     }
     useAuthStore.getState().setRole(res.role);
     

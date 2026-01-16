@@ -23,40 +23,6 @@ export async function getMercadoPagoStatus(): Promise<MercadoPagoOAuthStatus> {
 }
 
 /**
- * Guarda los tokens de OAuth en el perfil del usuario
- */
-export async function connectMercadoPago(request: ConnectOAuthRequest): Promise<{ success: boolean; mp_user_id?: string; mp_status?: string }> {
-  return api<{ success: boolean; mp_user_id?: string; mp_status?: string }>('/mp/oauth/connect', {
-    method: 'POST',
-    body: JSON.stringify(request),
-  });
-}
-
-/**
- * Refresca el access_token de Mercado Pago
- */
-export async function refreshMercadoPagoToken(): Promise<{ success: boolean; expires_in?: number }> {
-  return api<{ success: boolean; expires_in?: number }>('/mp/oauth/refresh', {
-    method: 'POST',
-  });
-}
-
-/**
- * Realiza una transferencia a un driver
- */
-export async function transferToDriver(payload: {
-  driver_id: string;
-  amount: number;
-  description?: string;
-  payment_id?: string;
-}) {
-  return api<{ success: boolean; transfer: any }>('/mp/transfers', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
-/**
  * Obtiene la URL de OAuth de Mercado Pago desde el backend
  */
 export async function getMercadoPagoOAuthUrl(): Promise<string> {

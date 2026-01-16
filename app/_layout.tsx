@@ -17,10 +17,6 @@ export default function RootLayout() {
   const { visible, config, hideAlert } = useAlertStore();
 
   useEffect(() => {
-    // Aquí podrías cargar fuentes u otros recursos
-    // Por ahora, solo ocultamos el splash screen después de un breve delay
-    // o cuando la app esté lista.
-    // En un caso real, esto se llamaría cuando las fuentes y el estado inicial estén listos.
     SplashScreen.hideAsync();
   }, []);
 

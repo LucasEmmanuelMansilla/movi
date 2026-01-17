@@ -226,9 +226,9 @@ export function usePublishScreenLogic() {
           dropoffCoords.latitude,
           dropoffCoords.longitude
         );
-        const PRICE_PER_KM = 100;
-        const PRICE_PER_KG = 50;
-        const BASE_PRICE = 10;
+        const PRICE_PER_KM = 500;
+        const PRICE_PER_KG = 200;
+        const BASE_PRICE = 1000;
         const calculatedPrice = BASE_PRICE + (distance * PRICE_PER_KM) + (Number(formData.weight) * PRICE_PER_KG);
         updateField('price', Math.round(calculatedPrice).toString());
       }

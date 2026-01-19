@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getMyProfile, updateMyProfile, type Profile, type UpdateProfileData } from '../features/profile/service';
 import { isValidEmail, isValidPhone, isValidAddress } from '../utils/validation';
 import { useAuthStore } from '../store/useAuthStore';
 import { isAuthError } from '../utils/errorHandler';
+import { emitDriverAvailabilityChanged } from '../features/location/locationEvents';
+import { setDriverAvailableFlag } from '../features/location/backgroundLocation';
 
 export type ProfileFormData = {
   full_name: string;
@@ -82,6 +85,18 @@ export function useProfileForm() {
         business_address: p.business_address || '',
       });
       setAvatarUri(p.avatar_url);
+
+      // Sincronizar disponibilidad para background-location
+      if (p.role === 'driver') {
+        const isAvailable = (p as any).is_available ?? true;
+        await setDriverAvailableFlag(Boolean(isAvailable));
+        emitDriverAvailabilityChanged(Boolean(isAvailable));
+      } else {
+        // Si no es driver, limpiar flag (best-effort)
+        try {
+          await AsyncStorage.removeItem('driver_is_available');
+        } catch {}
+      }
     } catch (error: any) {
       if (isAuthError(error)) return; // El error 401 ya se maneja globalmente en api.ts
       throw new Error(error.message || 'No se pudo cargar el perfil');
@@ -217,6 +232,13 @@ export function useProfileForm() {
       setProfile(updated);
       if (updated.avatar_url) {
         setAvatarUri(updated.avatar_url);
+      }
+
+      // Mantener sincronizado el flag de disponibilidad para background-location
+      if (updated.role === 'driver') {
+        const isAvailable = (updated as any).is_available ?? formData.is_available ?? true;
+        await setDriverAvailableFlag(Boolean(isAvailable));
+        emitDriverAvailabilityChanged(Boolean(isAvailable));
       }
       return true;
     } catch (error: any) {

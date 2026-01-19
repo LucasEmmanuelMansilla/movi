@@ -6,6 +6,8 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useAlertStore } from '../../store/useAlertStore';
 import { translateStatus } from '../../utils/shipmentUtils';
 import type { LocationPayload } from '../useLocationPicker';
+import { pushNotificationEmitter } from '../../features/push/eventEmitter';
+import { PUSH_EVENTS } from '../../features/push/usePushNotifications';
 
 export function useShipmentDetailLogic(id: string | undefined) {
   const { role } = useAuthStore();
@@ -41,6 +43,23 @@ export function useShipmentDetailLogic(id: string | undefined) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Actualización realtime (push o broadcast): refrescar si corresponde a este envío
+  useEffect(() => {
+    if (!id) return;
+
+    const handler = (evt: any) => {
+      const shipmentId = evt?.data?.shipmentId ?? evt?.shipmentId;
+      if (shipmentId && String(shipmentId) === String(id)) {
+        load();
+      }
+    };
+
+    pushNotificationEmitter.on(PUSH_EVENTS.SHIPMENT_STATUS_CHANGED, handler);
+    return () => {
+      pushNotificationEmitter.off(PUSH_EVENTS.SHIPMENT_STATUS_CHANGED, handler);
+    };
+  }, [id, load]);
 
   useFocusEffect(
     useCallback(() => {

@@ -24,10 +24,6 @@ export default function Home() {
     return <Redirect href="/available" />;
   }
   
-  if (role === 'business') {
-    return <Redirect href="/publish" />;
-  }
-  
-  // Por defecto, redirigir a la vista de negocio si no hay rol definido
-  return <Redirect href="/available" />;
+  // Por defecto (incluyendo business o si no hay rol definido), redirigir a la vista de negocio
+  return <Redirect href="/publish" />;
 }

@@ -9,11 +9,28 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: "portrait",
   ios: {
     ...config.ios,
-    bundleIdentifier: "com.movi.app"
+    bundleIdentifier: "com.movi.app",
+    infoPlist: {
+      ...(config.ios as any)?.infoPlist,
+      NSLocationWhenInUseUsageDescription:
+        "Necesitamos tu ubicación para mostrar envíos cercanos y validar puntos de retiro/entrega.",
+      NSLocationAlwaysAndWhenInUseUsageDescription:
+        "Necesitamos tu ubicación en segundo plano para avisarte de envíos cercanos aunque la app esté cerrada.",
+      UIBackgroundModes: ["location"],
+    },
   },
   android: {
     ...config.android,
-    package: "com.movi.app"
+    package: "com.movi.app",
+    permissions: [
+      "INTERNET",
+      "ACCESS_COARSE_LOCATION",
+      "ACCESS_FINE_LOCATION",
+      "ACCESS_BACKGROUND_LOCATION",
+      "FOREGROUND_SERVICE",
+      "FOREGROUND_SERVICE_LOCATION",
+      "POST_NOTIFICATIONS",
+    ],
   },
   extra: {
     ...config.extra,

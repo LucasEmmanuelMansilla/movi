@@ -3,12 +3,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { View } from 'react-native';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { usePushNotifications } from '../../src/features/push/usePushNotifications';
+import { useRealtimeBroadcasts } from '../../src/features/realtime/useRealtimeBroadcasts';
+import { useDriverBackgroundLocation } from '../../src/features/location/useDriverBackgroundLocation';
 
 export default function AppLayout() {
   const { user, role, status } = useAuthStore();
   
   // Registrar push notifications cuando el usuario está autenticado
   usePushNotifications();
+  // Suscripción realtime (broadcast) por usuario
+  useRealtimeBroadcasts();
+  // Ubicación en background para drivers disponibles
+  useDriverBackgroundLocation();
 
   // Si no hay usuario y no está cargando, redirigir al login
   if (status !== 'idle' && status !== 'loading' && !user) {

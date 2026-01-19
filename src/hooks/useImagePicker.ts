@@ -45,7 +45,9 @@ export function useImagePicker() {
       } else {
         result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ImagePicker.MediaTypeOptions.Images,
-          allowsEditing: true,
+          // `allowsEditing` no es compatible con `allowsMultipleSelection`.
+          // Si habilitamos selección múltiple, deshabilitamos edición para evitar el warning.
+          allowsEditing: false,
           aspect: [4, 3],
           quality: 0.8,
           allowsMultipleSelection: true,

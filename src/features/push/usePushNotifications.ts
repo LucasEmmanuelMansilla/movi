@@ -117,7 +117,6 @@ export function usePushNotifications() {
         // Configurar expo-notifications para mostrar notificaciones locales en primer plano
         Notifications.setNotificationHandler({
           handleNotification: async () => ({
-            shouldShowAlert: true,
             shouldPlaySound: true,
             shouldSetBadge: true,
             shouldShowBanner: true,

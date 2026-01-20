@@ -11,7 +11,6 @@ import {
   BusinessInfoFields,
   ProfileActions
 } from '../../src/components/profile/ProfileComponents';
-import { MercadoPagoConnect } from '../../src/components/mercadopago/MercadoPagoConnect';
 import CustomAlert from '../../src/components/ui/CustomAlert';
 import { colors, spacing } from '../../src/ui/theme';
 
@@ -74,14 +73,11 @@ export default function ProfileScreen() {
       />
 
       {isDriver && (
-        <>
-          <DriverInfoFields 
-            formData={formData}
-            errors={errors}
-            updateField={updateField}
-          />
-          <MercadoPagoConnect />
-        </>
+        <DriverInfoFields 
+          formData={formData}
+          errors={errors}
+          updateField={updateField}
+        />
       )}
 
       {isBusiness && (

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { colors, spacing, radii } from '../../src/ui/theme';
 import { useWalletLogic } from '../../src/hooks/shipments/useWalletLogic';
@@ -8,6 +8,7 @@ import {
   TransferItem,
   WalletEmptyState
 } from '../../src/components/profile/WalletComponents';
+import { WithdrawFundsModal } from '../../src/components/profile/WithdrawFundsModal';
 
 /**
  * Pantalla de Billetera del Conductor
@@ -23,31 +24,9 @@ export default function WalletScreen() {
     withdraw
   } = useWalletLogic();
 
-  const handleWithdraw = async () => {
-    if (!stats || stats.pendingAmount <= 0) {
-      Alert.alert('Saldo insuficiente', 'No tienes saldo disponible para retirar.');
-      return;
-    }
-
-    Alert.alert(
-      'Confirmar retiro',
-      `¿Deseas retirar $${stats.pendingAmount.toLocaleString()} a tu cuenta de Mercado Pago?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Retirar',
-          onPress: async () => {
-            try {
-              const result = await withdraw();
-              Alert.alert('Éxito', result.message || 'Retiro procesado correctamente.');
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'No se pudo procesar el retiro.');
-            }
-          }
-        }
-      ]
-    );
-  };
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const availableAmount = useMemo(() => stats?.pendingAmount || 0, [stats]);
+  const canOpenWithdraw = availableAmount > 1000;
 
   if (loading && !refreshing) {
     return <WalletLoadingState />;
@@ -61,10 +40,10 @@ export default function WalletScreen() {
 
       <BalanceCard stats={stats} />
 
-      {stats && stats.pendingAmount > 0 && (
+      {stats && canOpenWithdraw && (
         <TouchableOpacity
           style={styles.withdrawButton}
-          onPress={handleWithdraw}
+          onPress={() => setWithdrawOpen(true)}
           disabled={loading}
         >
           {loading ? (
@@ -74,6 +53,22 @@ export default function WalletScreen() {
           )}
         </TouchableOpacity>
       )}
+
+      <WithdrawFundsModal
+        visible={withdrawOpen}
+        availableAmount={availableAmount}
+        loading={loading}
+        onClose={() => setWithdrawOpen(false)}
+        onConfirm={async (amount) => {
+          try {
+            const result = await withdraw(amount);
+            setWithdrawOpen(false);
+            Alert.alert('Éxito', result.message || 'Retiro procesado correctamente.');
+          } catch (error: any) {
+            Alert.alert('Error', error?.message || 'No se pudo procesar el retiro.');
+          }
+        }}
+      />
 
       <View style={styles.historyContainer}>
         <Text style={styles.historyTitle}>Historial de Pagos</Text>
@@ -95,7 +90,9 @@ export default function WalletScreen() {
 
       <View style={styles.footer}>
         <Text style={styles.footerNote}>
-          * Las transferencias pendientes se procesan manualmente por el marketplace.
+          {availableAmount > 0 && availableAmount <= 1000
+            ? '* Para retirar necesitás más de $1000 disponibles.'
+            : '* Los retiros se acreditan en tu cuenta de Mercado Pago.'}
         </Text>
       </View>
     </View>

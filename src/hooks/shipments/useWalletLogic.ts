@@ -32,10 +32,10 @@ export function useWalletLogic() {
     fetchData();
   }, [fetchData]);
 
-  const withdraw = useCallback(async () => {
+  const withdraw = useCallback(async (amount: number) => {
     try {
       setLoading(true);
-      const result = await withdrawFunds();
+      const result = await withdrawFunds(amount);
       await fetchData();
       return result;
     } catch (error) {

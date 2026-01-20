@@ -8,7 +8,8 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useHeaderHeight } from '@react-navigation/elements';
 import { useChat } from '../../../src/hooks/chat/useChat';
 import { ChatMessage } from '../../../src/components/chat/ChatMessage';
 import { ChatInput } from '../../../src/components/chat/ChatInput';
@@ -16,6 +17,8 @@ import { colors, spacing } from '../../../src/ui/theme';
 
 export default function ChatScreen() {
     const { shipmentId } = useLocalSearchParams<{ shipmentId: string }>();
+    const headerHeight = useHeaderHeight();
+    const insets = useSafeAreaInsets();
     const { 
         messages, 
         loading, 
@@ -34,7 +37,7 @@ export default function ChatScreen() {
     }
 
     return (
-        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+        <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
             <Stack.Screen
                 options={{
                     title: 'Chat de Envío',
@@ -42,9 +45,10 @@ export default function ChatScreen() {
                 }}
             />
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
                 style={styles.keyboardView}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                // Compensa header + safe-area para evitar que el teclado tape el input (especialmente en Android físico)
+                keyboardVerticalOffset={Math.max(0, headerHeight + insets.top)}
             >
                 <View style={styles.container}>
                     <FlatList
@@ -60,6 +64,7 @@ export default function ChatScreen() {
                         contentContainerStyle={styles.listContent}
                         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
                         keyboardDismissMode="on-drag"
+                        keyboardShouldPersistTaps="handled"
                     />
 
                     <ChatInput 

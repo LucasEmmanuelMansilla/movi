@@ -32,8 +32,9 @@ export async function getDriverStats() {
   return api<DriverStats>('/driver-transfers/stats');
 }
 
-export async function withdrawFunds() {
+export async function withdrawFunds(amount: number) {
   return api<{ success: boolean; amount: number; message: string }>('/driver-transfers/withdraw', {
-    method: 'POST'
+    method: 'POST',
+    body: JSON.stringify({ amount }),
   });
 }

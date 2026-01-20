@@ -18,7 +18,7 @@ export const BalanceCard = ({ stats }: { stats: DriverStats | null }) => (
     <View style={styles.balanceItem}>
       <Text style={styles.balanceLabel}>Saldo Pendiente</Text>
       <Text style={[styles.balanceAmount, { color: colors.warning }]}>
-        ${stats?.pendingAmount.toLocaleString() || '0.00'}
+        ${stats?.pendingAmount.toFixed(2).toLocaleString() || '0.00'}
       </Text>
     </View>
     <View style={styles.divider} />

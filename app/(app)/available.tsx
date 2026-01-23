@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FlatList, StyleSheet, View, TouchableOpacity, Text } from 'react-native';
+import { router } from 'expo-router';
 import { useAvailableShipments } from '../../src/hooks/shipments/useAvailableShipments';
 import { ShipmentCard } from '../../src/components/shipments/ShipmentCard';
 import { LoadingState, ErrorState, EmptyState } from '../../src/components/shipments/AvailableStates';
@@ -7,6 +8,7 @@ import { AvailableShipmentsMap } from '../../src/components/shipments/AvailableS
 import { colors, spacing, radii } from '../../src/ui/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Region } from 'react-native-maps';
+import { useAuthStore } from '../../src/store/useAuthStore';
 
 /**
  * Pantalla de Envíos Disponibles
@@ -15,6 +17,7 @@ import { Region } from 'react-native-maps';
 export default function AvailableScreen() {
   const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
   const [mapRegion, setMapRegion] = useState<Region | null>(null);
+  const { role } = useAuthStore();
   
   const {
     items,

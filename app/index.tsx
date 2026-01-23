@@ -21,9 +21,9 @@ export default function Home() {
 
   // Si hay usuario, redirigir según el rol
   if (role === 'driver') {
-    return <Redirect href="/available" />;
+    return <Redirect href="/(app)/available" />;
   }
   
   // Por defecto (incluyendo business o si no hay rol definido), redirigir a la vista de negocio
-  return <Redirect href="/publish" />;
+  return <Redirect href="/(app)/publish" />;
 }

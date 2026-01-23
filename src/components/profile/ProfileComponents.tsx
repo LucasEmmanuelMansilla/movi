@@ -36,7 +36,7 @@ interface ProfileHeaderProps {
 }
 
 export const ProfileHeader: React.FC<ProfileHeaderProps> = ({ 
-  avatarUri, onAvatarChange, isDriver, onShowAlert, onCloseAlert 
+  avatarUri, onAvatarChange, isDriver, onShowAlert, onCloseAlert
 }) => (
   <View style={styles.header}>
     <AvatarPicker 

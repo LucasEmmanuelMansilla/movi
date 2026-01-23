@@ -65,6 +65,7 @@ export function useProfileForm() {
       const authUser = useAuthStore.getState().user;
       
       setProfile(p);
+      
       setFormData({
         full_name: p.full_name || '',
         phone: p.phone || '',

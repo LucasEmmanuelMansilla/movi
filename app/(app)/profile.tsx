@@ -1,4 +1,5 @@
 import { ScrollView, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
 import { useProfileScreenLogic } from '../../src/hooks/useProfileScreenLogic';
 import { 
   ProfileLoadingState, 

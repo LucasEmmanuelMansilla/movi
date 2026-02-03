@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Link } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { colors, spacing, radii } from '../../ui/theme';
+import { colors, radii } from '../../ui/theme';
 
 // --- Login Header ---
 export const LoginHeader = () => (

@@ -1,6 +1,6 @@
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { View } from 'react-native';
+import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../../src/store/useAuthStore';
 import { usePushNotifications } from '../../src/features/push/usePushNotifications';
 import { useRealtimeBroadcasts } from '../../src/features/realtime/useRealtimeBroadcasts';
@@ -19,6 +19,15 @@ export default function AppLayout() {
   // Si no hay usuario y no está cargando, redirigir al login
   if (status !== 'idle' && status !== 'loading' && !user) {
     return <Redirect href="/(auth)/login" />;
+  }
+
+  // No resolver la UI del dashboard hasta tener el rol (evitar mostrar "Publicar envío" a un Driver)
+  if (user && role === null) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F3F4F6' }}>
+        <ActivityIndicator size="large" color="#09c577" />
+      </View>
+    );
   }
   
   return (
@@ -141,6 +150,14 @@ export default function AppLayout() {
           options={{
             href: null,
             title: 'Gestión de Pagos',
+            tabBarIcon: () => null
+          }}
+        />
+        <Tabs.Screen
+          name="didit/callback"
+          options={{
+            href: null,
+            title: 'Didit Callback',
             tabBarIcon: () => null
           }}
         />

@@ -44,6 +44,13 @@ export default {
               shipment_id: String,
             },
           },
+          // Callback de Didit KYC
+          'didit/callback': {
+            path: 'didit/callback',
+            parse: {
+              verificationSessionId: String,
+            },
+          },
           // Otras rutas de la app...
         },
       },

@@ -25,6 +25,9 @@ export type Profile = {
   // Campos específicos para business
   business_name: string | null;
   business_address: string | null;
+  // KYC fields
+  kyc_status: string | null;
+  kyc_validated_at: string | null;
   // Metadata
   created_at: string;
   updated_at: string | null;

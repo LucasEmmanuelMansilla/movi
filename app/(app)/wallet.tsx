@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { router } from 'expo-router';
 import { colors, spacing, radii } from '../../src/ui/theme';
 import { useWalletLogic } from '../../src/hooks/shipments/useWalletLogic';
 import {
@@ -9,10 +10,13 @@ import {
   WalletEmptyState
 } from '../../src/components/profile/WalletComponents';
 import { WithdrawFundsModal } from '../../src/components/profile/WithdrawFundsModal';
+import { getMyProfile } from '../../src/features/profile/service';
+import { hasCompleteBankData } from '../../src/utils/bankValidation';
 
 /**
  * Pantalla de Billetera del Conductor
  * Muestra el balance acumulado, cobros realizados y el historial de transferencias.
+ * Requiere datos bancarios completos para acceder.
  */
 export default function WalletScreen() {
   const {
@@ -25,10 +29,23 @@ export default function WalletScreen() {
   } = useWalletLogic();
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [bankCheckDone, setBankCheckDone] = useState(false);
   const availableAmount = useMemo(() => stats?.pendingAmount || 0, [stats]);
   const canOpenWithdraw = availableAmount > 1000;
 
-  if (loading && !refreshing) {
+  useEffect(() => {
+    getMyProfile()
+      .then((profile) => {
+        if (!hasCompleteBankData(profile)) {
+          router.replace('/(app)/profile');
+          return;
+        }
+        setBankCheckDone(true);
+      })
+      .catch(() => setBankCheckDone(true));
+  }, []);
+
+  if (!bankCheckDone || (loading && !refreshing)) {
     return <WalletLoadingState />;
   }
 

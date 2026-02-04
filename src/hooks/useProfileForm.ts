@@ -193,6 +193,7 @@ export function useProfileForm() {
 
   const saveProfile = async (avatarBase64?: string): Promise<boolean> => {
     if (!validateForm()) {
+      if (__DEV__) console.warn('[saveProfile] Validación fallida', { errors });
       return false;
     }
 
@@ -229,6 +230,11 @@ export function useProfileForm() {
         updateData.business_address = formData.business_address.trim() || undefined;
       }
 
+      if (__DEV__) {
+        const payloadLog = { ...updateData };
+        if (payloadLog.avatar_url) payloadLog.avatar_url = `[base64, ${(payloadLog.avatar_url as string).length} chars]`;
+        console.log('[saveProfile] PUT /profile/me', { keys: Object.keys(updateData), payload: payloadLog });
+      }
       const updated = await updateMyProfile(updateData);
       setProfile(updated);
       if (updated.avatar_url) {
@@ -243,6 +249,14 @@ export function useProfileForm() {
       }
       return true;
     } catch (error: any) {
+      if (__DEV__) {
+        console.error('[saveProfile] Error API', {
+          message: error?.message,
+          statusCode: error?.statusCode ?? error?.status,
+          details: error?.details,
+          name: error?.name,
+        });
+      }
       if (isAuthError(error)) return false; // El error 401 ya se maneja globalmente en api.ts
       throw new Error(error.message || 'No se pudo actualizar el perfil');
     } finally {

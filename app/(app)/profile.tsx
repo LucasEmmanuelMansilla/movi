@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { useProfileScreenLogic } from '../../src/hooks/useProfileScreenLogic';
@@ -12,6 +13,7 @@ import {
   BusinessInfoFields,
   ProfileActions
 } from '../../src/components/profile/ProfileComponents';
+import { BankAccountForm } from '../../src/components/profile/BankAccountForm';
 import CustomAlert from '../../src/components/ui/CustomAlert';
 import { colors, spacing } from '../../src/ui/theme';
 
@@ -21,6 +23,8 @@ import { colors, spacing } from '../../src/ui/theme';
  * y configuración de pagos.
  */
 export default function ProfileScreen() {
+  const scrollRef = useRef<ScrollView>(null);
+  const [bankSectionY, setBankSectionY] = useState<number>(0);
   const {
     profile,
     formData,
@@ -51,7 +55,8 @@ export default function ProfileScreen() {
   const isBusiness = profile.role === 'business';
 
   return (
-    <ScrollView 
+    <ScrollView
+      ref={scrollRef}
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
@@ -64,7 +69,16 @@ export default function ProfileScreen() {
         onCloseAlert={closeAlert}
       />
 
-      {isDriver && <DriverWalletBanner />}
+      {isDriver && (
+        <DriverWalletBanner
+          profile={profile}
+          onRequestCompleteBankData={() => {
+            if (scrollRef.current && bankSectionY >= 0) {
+              scrollRef.current.scrollTo({ y: Math.max(0, bankSectionY - 20), animated: true });
+            }
+          }}
+        />
+      )}
       {isBusiness && <BusinessPaymentsBanner />}
 
       <PersonalInfoFields 
@@ -79,6 +93,16 @@ export default function ProfileScreen() {
           errors={errors}
           updateField={updateField}
         />
+      )}
+
+      {isDriver && (
+        <View onLayout={(e) => setBankSectionY(e.nativeEvent.layout.y)}>
+          <BankAccountForm
+            formData={formData}
+            errors={errors}
+            updateField={updateField}
+          />
+        </View>
       )}
 
       {isBusiness && (

@@ -70,19 +70,47 @@ export function useProfileScreenLogic() {
   }, [formData, profile]);
 
   const handleSave = async () => {
+    if (__DEV__) {
+      console.log('[handleSave] Inicio', {
+        avatarUri: avatarUri ? `${avatarUri.slice(0, 50)}...` : null,
+        convierteAvatar: !!(avatarUri && avatarUri.startsWith('file://')),
+      });
+    }
     try {
       let avatarBase64: string | undefined;
       if (avatarUri && avatarUri.startsWith('file://')) {
+        if (__DEV__) console.log('[handleSave] Convirtiendo imagen a base64...');
         avatarBase64 = await imageToBase64(avatarUri);
+        if (__DEV__) console.log('[handleSave] Imagen convertida', { length: avatarBase64?.length ?? 0 });
       }
 
       const success = await saveProfile(avatarBase64);
+      if (__DEV__) console.log('[handleSave] saveProfile resultado', { success });
       if (success) {
         showAlert('Éxito', 'Perfil actualizado correctamente');
         setHasChanges(false);
+      } else {
+        if (__DEV__) console.warn('[handleSave] saveProfile devolvió false (validación o auth)');
       }
     } catch (e: any) {
-      showAlert('Error', e.message || 'No se pudo actualizar el perfil');
+      const statusCode = e?.statusCode ?? e?.status;
+      const details = e?.details ?? e?.response;
+      if (__DEV__) {
+        console.error('[handleSave] Error', {
+          message: e?.message,
+          statusCode,
+          details,
+          name: e?.name,
+          full: e,
+        });
+      }
+      const detailStr = details && typeof details === 'object'
+        ? (Array.isArray(details) ? details.join(', ') : JSON.stringify(details))
+        : '';
+      const mensaje = e?.message === 'invalid data' && detailStr
+        ? `Datos inválidos: ${detailStr}`
+        : (e?.message || 'No se pudo actualizar el perfil');
+      showAlert('Error', mensaje);
     }
   };
 

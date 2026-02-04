@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Switch } f
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { colors, spacing, radii } from '../../ui/theme';
+import { hasCompleteBankData } from '../../utils/bankValidation';
 import { AvatarPicker } from './AvatarPicker';
 import { ProfileSection } from './ProfileSection';
 import { Input } from '../../ui/Input';
@@ -60,23 +61,54 @@ export const ProfileHeader: React.FC<ProfileHeaderProps> = ({
 );
 
 // --- Wallet Banners ---
-export const DriverWalletBanner = () => (
-  <TouchableOpacity 
-    style={styles.walletCard}
-    onPress={() => router.replace('/(app)/wallet')}
-    activeOpacity={0.8}
-  >
-    <View style={styles.walletHeader}>
-      <View style={styles.walletTitleContainer}>
-        <Ionicons name="wallet-outline" size={20} color={colors.accent} />
-        <Text style={styles.walletTitle}>Mi Billetera</Text>
+interface DriverWalletBannerProps {
+  profile?: { bank_account_type?: string | null; bank_cbu?: string | null; bank_cvu?: string | null; bank_alias?: string | null; bank_name?: string | null; bank_account_number?: string | null; bank_account_holder_name?: string | null } | null;
+  onRequestCompleteBankData?: () => void;
+}
+
+export const DriverWalletBanner: React.FC<DriverWalletBannerProps> = ({ profile, onRequestCompleteBankData }) => {
+  const canAccessWallet = hasCompleteBankData(profile);
+
+  if (!canAccessWallet) {
+    return (
+      <TouchableOpacity
+        style={[styles.walletCard, styles.bankDataRequiredCard]}
+        onPress={onRequestCompleteBankData}
+        activeOpacity={0.8}
+      >
+        <View style={styles.walletHeader}>
+          <View style={styles.walletTitleContainer}>
+            <Ionicons name="card-outline" size={20} color={colors.warning} />
+            <Text style={styles.walletTitle}>Completar datos bancarios</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+        </View>
+        <Text style={styles.walletBalanceLabel}>Necesitás completar tu cuenta bancaria</Text>
+        <Text style={[styles.walletBalance, { color: colors.warning }]}>
+          Tocá para completar y acceder a Mi Billetera
+        </Text>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      style={styles.walletCard}
+      onPress={() => router.replace('/(app)/wallet')}
+      activeOpacity={0.8}
+    >
+      <View style={styles.walletHeader}>
+        <View style={styles.walletTitleContainer}>
+          <Ionicons name="wallet-outline" size={20} color={colors.accent} />
+          <Text style={styles.walletTitle}>Mi Billetera</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={20} color={colors.muted} />
       </View>
-      <Ionicons name="chevron-forward" size={20} color={colors.muted} />
-    </View>
-    <Text style={styles.walletBalanceLabel}>Saldo acumulado</Text>
-    <Text style={styles.walletBalance}>Ver mis ganancias</Text>
-  </TouchableOpacity>
-);
+      <Text style={styles.walletBalanceLabel}>Saldo acumulado</Text>
+      <Text style={styles.walletBalance}>Ver mis ganancias</Text>
+    </TouchableOpacity>
+  );
+};
 
 export const BusinessPaymentsBanner = () => (
   <TouchableOpacity 
@@ -281,6 +313,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
+  },
+  bankDataRequiredCard: {
+    borderColor: colors.warning,
   },
   walletHeader: {
     flexDirection: 'row',

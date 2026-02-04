@@ -33,8 +33,9 @@ export async function getDriverStats() {
 }
 
 export async function withdrawFunds(amount: number) {
-  return api<{ success: boolean; amount: number; message: string }>('/driver-transfers/withdraw', {
+  const res = await api<{ success: boolean; amount: number; message: string; withdrawalRequestId?: string }>('/withdrawal-requests', {
     method: 'POST',
     body: JSON.stringify({ amount }),
   });
+  return res;
 }

@@ -4,6 +4,7 @@ import { Input } from '../../ui/Input';
 import { ProfileSection } from './ProfileSection';
 import { colors, spacing } from '../../ui/theme';
 import { Ionicons } from '@expo/vector-icons';
+import { ProfileFormData } from '../../hooks/useProfileForm';
 
 type BankAccountType = 'checking' | 'savings' | 'cbu' | 'cvu' | 'alias' | '';
 
@@ -18,7 +19,7 @@ interface BankAccountFormProps {
     bank_account_holder_name: string;
   };
   errors: Partial<Record<string, string>>;
-  updateField: (field: string, value: string) => void;
+  updateField: (field: keyof ProfileFormData, value: string | boolean) => void;
 }
 
 export function BankAccountForm({ formData, errors, updateField }: BankAccountFormProps) {

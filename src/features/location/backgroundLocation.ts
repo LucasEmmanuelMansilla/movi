@@ -94,9 +94,17 @@ export async function startBackgroundLocationTracking() {
 
 export async function stopBackgroundLocationTracking() {
   ensureBackgroundLocationTaskDefined();
-  const started = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
-  if (started) {
+  try {
+    const started = await Location.hasStartedLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+    if (!started) return;
     await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
+  } catch (e) {
+    // Si la tarea nunca fue registrada (ej. primera apertura, reinstalación), el nativo
+    // lanza TaskNotFoundException al intentar desregistrar. Ignorar para no romper la app.
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!msg.includes('TaskNotFoundException') && !msg.includes('not found')) {
+      throw e;
+    }
   }
 }
 

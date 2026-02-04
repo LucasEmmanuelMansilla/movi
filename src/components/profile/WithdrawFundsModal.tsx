@@ -62,7 +62,7 @@ export function WithdrawFundsModal({ visible, availableAmount, loading, onClose,
             autoFocus
             style={styles.input}
           />
-          <Text style={styles.help}>Mínimo: más de ${MIN_WITHDRAW_AMOUNT_ARS}.</Text>
+          <Text style={styles.help}>Mínimo: más de ${MIN_WITHDRAW_AMOUNT_ARS}. Un administrador procesará el retiro manualmente y te notificará cuando se acredite.</Text>
           {validationError ? <Text style={styles.error}>{validationError}</Text> : null}
 
           <View style={styles.actions}>

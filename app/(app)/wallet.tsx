@@ -109,7 +109,7 @@ export default function WalletScreen() {
         <Text style={styles.footerNote}>
           {availableAmount > 0 && availableAmount <= 1000
             ? '* Para retirar necesitás más de $1000 disponibles.'
-            : '* Los retiros se acreditan en tu cuenta de Mercado Pago.'}
+            : '* Los retiros se procesan manualmente. Recibirás una notificación cuando se acredite el dinero en tu cuenta.'}
         </Text>
       </View>
     </View>

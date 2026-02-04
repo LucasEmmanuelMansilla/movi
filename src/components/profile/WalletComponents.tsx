@@ -13,19 +13,22 @@ export const WalletLoadingState = () => (
 );
 
 // --- Balance Card ---
+const formatAmount = (n: number | undefined) =>
+  (n ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export const BalanceCard = ({ stats }: { stats: DriverStats | null }) => (
   <View style={styles.balanceCard}>
     <View style={styles.balanceItem}>
-      <Text style={styles.balanceLabel}>Saldo Pendiente</Text>
+      <Text style={styles.balanceLabel}>Disponible para retirar</Text>
       <Text style={[styles.balanceAmount, { color: colors.warning }]}>
-        ${stats?.pendingAmount.toFixed(2).toLocaleString() || '0.00'}
+        ${formatAmount(stats?.pendingAmount)}
       </Text>
     </View>
     <View style={styles.divider} />
     <View style={styles.balanceItem}>
-      <Text style={styles.balanceLabel}>Total Cobrado</Text>
+      <Text style={styles.balanceLabel}>Ya retirado</Text>
       <Text style={[styles.balanceAmount, { color: colors.success }]}>
-        ${stats?.completedAmount.toLocaleString() || '0.00'}
+        ${formatAmount(stats?.completedAmount)}
       </Text>
     </View>
   </View>

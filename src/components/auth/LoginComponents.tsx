@@ -94,6 +94,13 @@ export const LoginActions: React.FC<LoginActionsProps> = ({ loading, onPress }) 
         Regístrate
       </Link>
     </View>
+    <View style={styles.privacyFooter}>
+      <Link href="/(auth)/privacy" asChild>
+        <TouchableOpacity>
+          <Text style={styles.privacyLink}>Políticas de Privacidad</Text>
+        </TouchableOpacity>
+      </Link>
+    </View>
   </>
 );
 
@@ -151,6 +158,15 @@ const styles = StyleSheet.create({
   link: {
     color: colors.accent,
     fontWeight: '600',
+  },
+  privacyFooter: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  privacyLink: {
+    fontSize: 13,
+    color: colors.muted,
+    textDecorationLine: 'underline',
   },
   eyeIcon: {
     position: 'absolute',

@@ -28,6 +28,9 @@ export type Profile = {
   // KYC fields
   kyc_status: string | null;
   kyc_validated_at: string | null;
+  // Privacy policy
+  privacy_policy_accepted: boolean | null;
+  privacy_policy_accepted_at: string | null;
   // Metadata
   created_at: string;
   updated_at: string | null;
@@ -65,10 +68,25 @@ export async function updateMyProfile(data: UpdateProfileData) {
   return api<Profile>('/profile/me', { method: 'PUT', body: JSON.stringify(data) });
 }
 
+export async function acceptPrivacyPolicy() {
+  return api<{ ok: boolean; privacy_policy_accepted: boolean; privacy_policy_accepted_at: string }>(
+    '/profile/me/accept-privacy-policy',
+    { method: 'POST' }
+  );
+}
+
 export async function signOutAll() {
   try {
     await useAuthStore.getState().signOut();
   } catch {}
+}
+
+/**
+ * Elimina la cuenta del usuario y todos sus datos en el servidor.
+ * Tras éxito, el cliente debe cerrar sesión y redirigir (ej. a login).
+ */
+export async function deleteMyAccount() {
+  await api('/profile/me', { method: 'DELETE' });
 }
 
 /**

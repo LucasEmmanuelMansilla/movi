@@ -22,6 +22,7 @@ export default function Register() {
     confirmPassword, handleConfirmPasswordChange,
     fullName, setFullName,
     role, setRole,
+    privacyAccepted, setPrivacyAccepted,
     loading,
     showPassword, setShowPassword,
     showConfirmPassword, setShowConfirmPassword,
@@ -110,6 +111,30 @@ export default function Register() {
 
       <PasswordRequirements password={password} />
 
+      <View style={styles.privacySection}>
+        <TouchableOpacity
+          style={styles.checkboxRow}
+          onPress={() => setPrivacyAccepted(!privacyAccepted)}
+          activeOpacity={0.7}
+        >
+          <View style={[styles.checkbox, privacyAccepted && styles.checkboxChecked]}>
+            {privacyAccepted && (
+              <MaterialIcons name="check" size={18} color="white" />
+            )}
+          </View>
+          <Text style={styles.checkboxLabel}>
+            Acepto las{' '}
+            <Text style={styles.privacyLink}>Políticas de Privacidad</Text>
+            {' '}(obligatorio)
+          </Text>
+        </TouchableOpacity>
+        <Link href="/(auth)/privacy" asChild>
+          <TouchableOpacity>
+            <Text style={styles.viewPolicyLink}>Ver políticas completas</Text>
+          </TouchableOpacity>
+        </Link>
+      </View>
+
       <RoleSelector role={role} setRole={setRole} />
 
       <TouchableOpacity
@@ -181,6 +206,46 @@ const styles = StyleSheet.create({
     color: colors.muted,
     marginBottom: 8,
     fontSize: 12,
+  },
+  privacySection: {
+    marginBottom: 20,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: colors.border,
+    marginRight: 12,
+    marginTop: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: colors.accent,
+    borderColor: colors.accent,
+  },
+  checkboxLabel: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  privacyLink: {
+    color: colors.primary,
+    textDecorationLine: 'underline',
+    fontWeight: '600',
+  },
+  viewPolicyLink: {
+    fontSize: 13,
+    color: colors.primary,
+    textDecorationLine: 'underline',
+    marginLeft: 36,
   },
   button: {
     backgroundColor: colors.accent,

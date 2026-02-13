@@ -41,6 +41,7 @@ export default function ProfileScreen() {
     closeAlert,
     handleSave,
     handleLogout,
+    handleDeleteAccount,
   } = useProfileScreenLogic();
 
   if (loading) {
@@ -118,6 +119,7 @@ export default function ProfileScreen() {
         hasChanges={hasChanges}
         onSave={handleSave}
         onLogout={handleLogout}
+        onDeleteAccount={handleDeleteAccount}
       />
 
       <View style={{ height: spacing.xl }} />

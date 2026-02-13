@@ -3,7 +3,8 @@ import { useAuthStore } from '../src/store/useAuthStore';
 import { View, ActivityIndicator } from 'react-native';
 import { useState, useEffect } from 'react';
 import IdentityVerificationScreen from '../components/IdentifyVerificationScreen';
-import { getMyProfile, Profile } from '../src/features/profile/service';
+import PrivacyPolicyScreen from '../src/components/PrivacyPolicyScreen';
+import { getMyProfile, acceptPrivacyPolicy, Profile } from '../src/features/profile/service';
 
 type KYCStatus = 'approved' | 'declined' | 'in_review' | 'not_started' | null;
 
@@ -16,36 +17,43 @@ export default function Home() {
 
   const isDriver = role === 'driver';
 
-  // Cargar perfil cuando el usuario esté autenticado y sea driver
+  // Cargar perfil cuando el usuario esté autenticado (para privacy y KYC)
   useEffect(() => {
-    if (status === 'authenticated' && user && isDriver && !profile && !loadingProfile) {
+    if (status === 'authenticated' && user && !profile && !loadingProfile) {
       loadProfile();
     }
-  }, [status, user, isDriver, profile, loadingProfile]);
+  }, [status, user, profile, loadingProfile]);
 
-  // Verificar estado KYC cuando se carga el perfil
+  // Verificar estado KYC cuando se carga el perfil (solo para drivers)
   useEffect(() => {
     if (profile && isDriver) {
-      const status = (profile.kyc_status as KYCStatus) || 'not_started';
-      setKycStatus(status);
-      
-      // Si se completó la verificación y ahora está aprobado, marcar como completo
-      if (status === 'approved' && !verificationComplete) {
+      const s = (profile.kyc_status as KYCStatus) || 'not_started';
+      setKycStatus(s);
+      if (s === 'approved' && !verificationComplete) {
         setVerificationComplete(true);
       }
     }
   }, [profile, isDriver, verificationComplete]);
+
+  const handleAcceptPrivacyPolicy = async () => {
+    await acceptPrivacyPolicy();
+    const updated = await getMyProfile();
+    setProfile(updated);
+  };
 
   const loadProfile = async () => {
     setLoadingProfile(true);
     try {
       const profileData = await getMyProfile();
       setProfile(profileData);
-      const status = (profileData.kyc_status as KYCStatus) || 'not_started';
-      setKycStatus(status);
+      if (profileData.role === 'driver') {
+        const s = (profileData.kyc_status as KYCStatus) || 'not_started';
+        setKycStatus(s);
+      } else {
+        setKycStatus(null);
+      }
     } catch (error) {
-      console.error('Error cargando perfil para verificación KYC:', error);
-      // Si hay error, asumir que no está verificado para ser más seguro
+      console.error('Error cargando perfil:', error);
       setKycStatus('not_started');
     } finally {
       setLoadingProfile(false);
@@ -74,7 +82,7 @@ export default function Home() {
     return <Redirect href="/(auth)/login" />;
   }
 
-  // No resolver la UI hasta tener el rol del usuario (evitar mostrar "Publicar" a un Driver)
+  // No resolver la UI hasta tener el rol del usuario
   if (role === null) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -83,11 +91,30 @@ export default function Home() {
     );
   }
 
+  // Cargar perfil para verificar privacidad (todos los usuarios)
+  if (loadingProfile || profile === null) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#09c577" />
+      </View>
+    );
+  }
+
+  // OBLIGATORIO: Aceptar Políticas de Privacidad antes de usar la app
+  const privacyAccepted = profile.privacy_policy_accepted === true;
+  if (!privacyAccepted) {
+    return (
+      <PrivacyPolicyScreen
+        requireAccept={true}
+        showBackButton={false}
+        onAccept={handleAcceptPrivacyPolicy}
+      />
+    );
+  }
+
   // Si es driver, verificar KYC antes de permitir acceso
   if (isDriver) {
-    // Mostrar carga mientras se obtiene el perfil o mientras kycStatus es null
-    // NO mostrar nada hasta que tengamos el perfil cargado y el estado KYC determinado
-    if (loadingProfile || profile === null || kycStatus === null) {
+    if (kycStatus === null) {
       return (
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#09c577" />

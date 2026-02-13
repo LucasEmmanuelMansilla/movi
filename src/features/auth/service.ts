@@ -6,7 +6,8 @@ export async function signUpWithEmail(
   email: string, 
   password: string, 
   role: 'driver' | 'business', 
-  fullName?: string
+  fullName?: string,
+  privacyPolicyAccepted?: boolean
 ) {
   try {
     const emailLimpio = email.trim();
@@ -51,7 +52,8 @@ export async function signUpWithEmail(
       const { token, error: exchangeError } = await exchangeToken(
         data.session.access_token,
         role,
-        fullName
+        fullName,
+        privacyPolicyAccepted
       );
       
       if (exchangeError) {
@@ -79,16 +81,20 @@ export async function signUpWithEmail(
 async function exchangeToken(
   accessToken: string, 
   role: 'driver' | 'business',
-  fullName?: string
+  fullName?: string,
+  privacyPolicyAccepted?: boolean
 ) {
   try {
     console.log(`🔄 Haciendo exchange con rol: ${role}, nombre: ${fullName || 'N/A'}`);
     
-    const requestBody = { 
+    const requestBody: Record<string, unknown> = { 
       access_token: accessToken, 
       role, 
       full_name: fullName 
     };
+    if (privacyPolicyAccepted === true) {
+      requestBody.privacy_policy_accepted = true;
+    }
     
     console.log('📤 Request body:', JSON.stringify({ ...requestBody, access_token: '***' }));
     

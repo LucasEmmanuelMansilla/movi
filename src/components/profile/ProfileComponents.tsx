@@ -239,9 +239,10 @@ interface ProfileActionsProps {
   hasChanges: boolean;
   onSave: () => void;
   onLogout: () => void;
+  onDeleteAccount?: () => void;
 }
 
-export const ProfileActions: React.FC<ProfileActionsProps> = ({ saving, hasChanges, onSave, onLogout }) => (
+export const ProfileActions: React.FC<ProfileActionsProps> = ({ saving, hasChanges, onSave, onLogout, onDeleteAccount }) => (
   <View style={styles.actionsContainer}>
     <Button
       title={saving ? 'Guardando...' : 'Guardar cambios'}
@@ -251,6 +252,15 @@ export const ProfileActions: React.FC<ProfileActionsProps> = ({ saving, hasChang
       style={styles.saveButton}
     />
     <TouchableOpacity
+      style={styles.privacyLink}
+      onPress={() => router.push('/(auth)/privacy')}
+      activeOpacity={0.7}
+    >
+      <Ionicons name="document-text-outline" size={20} color={colors.primary} />
+      <Text style={styles.privacyLinkText}>Políticas de Privacidad</Text>
+      <Ionicons name="chevron-forward" size={20} color={colors.muted} />
+    </TouchableOpacity>
+    <TouchableOpacity
       style={styles.logoutButton}
       onPress={onLogout}
       activeOpacity={0.7}
@@ -258,6 +268,16 @@ export const ProfileActions: React.FC<ProfileActionsProps> = ({ saving, hasChang
       <Ionicons name="log-out-outline" size={20} color={colors.text} />
       <Text style={styles.logoutText}>Cerrar sesión</Text>
     </TouchableOpacity>
+    {onDeleteAccount ? (
+      <TouchableOpacity
+        style={styles.deleteAccountButton}
+        onPress={onDeleteAccount}
+        activeOpacity={0.7}
+      >
+        <Ionicons name="trash-outline" size={20} color="#DC2626" />
+        <Text style={styles.deleteAccountText}>Eliminar cuenta</Text>
+      </TouchableOpacity>
+    ) : null}
   </View>
 );
 
@@ -370,6 +390,23 @@ const styles = StyleSheet.create({
   saveButton: {
     marginBottom: spacing.xs,
   },
+  privacyLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: spacing.sm,
+  },
+  privacyLinkText: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.primary,
+    fontWeight: '500',
+  },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -386,5 +423,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: colors.text,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'white',
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    gap: spacing.sm,
+  },
+  deleteAccountText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#DC2626',
   },
 });

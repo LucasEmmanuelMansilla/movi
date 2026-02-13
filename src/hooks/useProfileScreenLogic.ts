@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { router } from 'expo-router';
 import { useProfileForm } from './useProfileForm';
-import { signOutAll } from '../features/profile/service';
+import { signOutAll, deleteMyAccount } from '../features/profile/service';
 import { imageToBase64 } from '../utils/imageConverter';
 
 export interface AlertButton {
@@ -137,6 +137,31 @@ export function useProfileScreenLogic() {
     );
   };
 
+  const handleDeleteAccount = () => {
+    showAlert(
+      'Eliminar cuenta',
+      '¿Estás seguro? Se eliminarán todos tus datos y la cuenta de forma permanente. Esta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', onPress: closeAlert },
+        {
+          text: 'Eliminar cuenta',
+          onPress: async () => {
+            closeAlert();
+            try {
+              await deleteMyAccount();
+              await signOutAll();
+              router.replace('/(auth)/login');
+            } catch (e: any) {
+              showAlert('Error', e?.message || 'No se pudo eliminar la cuenta.');
+            }
+          },
+          style: { backgroundColor: '#DC2626' },
+          textStyle: { color: '#fff' },
+        },
+      ]
+    );
+  };
+
   return {
     ...form,
     alertRef,
@@ -145,5 +170,6 @@ export function useProfileScreenLogic() {
     closeAlert,
     handleSave,
     handleLogout,
+    handleDeleteAccount,
   };
 }

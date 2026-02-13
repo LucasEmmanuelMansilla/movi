@@ -10,6 +10,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     ...config.ios,
     bundleIdentifier: "com.movi.app",
+    // Descarga GoogleService-Info.plist de Firebase Console si builds para iOS
+    // googleServicesFile: "./GoogleService-Info.plist",
     infoPlist: {
       ...(config.ios as any)?.infoPlist,
       NSLocationWhenInUseUsageDescription:
@@ -22,6 +24,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   android: {
     ...config.android,
     package: "com.movi.app",
+    // REQUERIDO para Firebase/React Native Firebase en Android
+    googleServicesFile: "./google-services.json",
     permissions: [
       "INTERNET",
       "ACCESS_COARSE_LOCATION",
@@ -45,12 +49,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     apiUrl: process.env.EXPO_PUBLIC_API_URL,
     supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    landingUrl: process.env.EXPO_PUBLIC_LANDING_URL,
   },
   experiments: {
     typedRoutes: true
   },
   plugins: [
     ...(config.plugins || []),
-    './plugins/withFirebase.js'
-  ]
+    "@react-native-firebase/app",
+    "@react-native-firebase/messaging",
+    [
+      "expo-build-properties",
+      {
+        ios: {
+          useFrameworks: "static",
+        },
+      },
+    ],
+  ],
 });

@@ -18,6 +18,7 @@ export function useRegisterLogic() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'driver' | 'business'>('business');
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -63,7 +64,8 @@ export function useRegisterLogic() {
       password !== '' &&
       confirmPassword !== '' &&
       password === confirmPassword &&
-      PASSWORD_REGEX.test(password)
+      PASSWORD_REGEX.test(password) &&
+      privacyAccepted
     );
   };
 
@@ -98,7 +100,8 @@ export function useRegisterLogic() {
         email.trim(),
         password,
         role,
-        fullName.trim()
+        fullName.trim(),
+        privacyAccepted
       );
 
       if (result.requiresConfirmation) {
@@ -134,6 +137,7 @@ export function useRegisterLogic() {
     confirmPassword, handleConfirmPasswordChange,
     fullName, setFullName,
     role, setRole,
+    privacyAccepted, setPrivacyAccepted,
     loading,
     showPassword, setShowPassword,
     showConfirmPassword, setShowConfirmPassword,
